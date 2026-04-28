@@ -1,0 +1,643 @@
+<html lang="en" vid="0"><head vid="1">
+<meta charset="UTF-8" vid="2">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+<title vid="4">PULL - Intentional Interface</title>
+
+
+
+<style vid="5">
+    :root {
+        --ink: #1a1a1a;
+        --ink-light: rgba(26, 26, 26, 0.4);
+        --ink-faint: rgba(26, 26, 26, 0.1);
+        --paper: #fcfcf8;
+        --paper-trans: rgba(252, 252, 248, 0.85);
+        --accent-red: #f2c4c4;
+        --accent-green: #cce0c5;
+        --accent-yellow: #f5e6ba;
+        --accent-blue: #b3d7eb;
+        
+        --radius-sm: 12px;
+        --radius-md: 20px;
+        --radius-pill: 999px;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+
+    body, html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background-color: #1d7ee3; 
+        overscroll-behavior: none;
+    }
+
+    
+    #canvas-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+    }
+
+    
+    .ambient-text {
+        position: absolute;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: -0.02em;
+        z-index: 1;
+        mix-blend-mode: overlay;
+        opacity: 0.8;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
+    }
+    .ambient-text.hidden { opacity: 0; }
+    
+    #word-in { top: 10%; left: 10%; }
+    #word-the { top: 10%; right: 12%; }
+    #word-grand { top: 48%; left: 10%; }
+    #word-scheme { top: 48%; right: 10%; }
+    #word-of { bottom: 12%; left: 10%; }
+    #word-things { bottom: 12%; right: 12%; }
+
+    
+    #ui-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none; 
+    }
+
+    
+    .dynamic-island {
+        margin-top: 16px;
+        background: var(--ink);
+        color: var(--paper);
+        height: 32px;
+        border-radius: var(--radius-pill);
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        gap: 8px;
+        pointer-events: auto;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .island-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-green);
+        border-radius: 50%;
+        transition: background 0.3s;
+    }
+
+    
+    #pull-system {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    
+    #tension-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 11;
+    }
+    
+    path.string {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-opacity: 0.3;
+        transition: stroke-opacity 0.3s;
+    }
+
+    
+    #pull-handle {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: auto;
+        z-index: 12;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: grab;
+    }
+
+    #pull-handle:active {
+        cursor: grabbing;
+    }
+
+    .note-card {
+        background: var(--paper-trans);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--ink-faint);
+        border-radius: var(--radius-md);
+        padding: 24px;
+        width: 280px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(26,26,26,0.05);
+        transition: transform 0.1s;
+    }
+
+    .note-text {
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.4;
+        color: var(--ink);
+        margin-bottom: 8px;
+    }
+
+    .note-subtext {
+        font-size: 12px;
+        color: var(--ink-light);
+    }
+
+    .pull-indicator {
+        margin-top: 16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--ink-light);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: var(--paper);
+    }
+
+    .pull-indicator svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--ink);
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    
+    #check-in-view {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        padding: 32px 24px 48px;
+        background: linear-gradient(to top, var(--paper) 0%, rgba(252,252,248,0.9) 70%, transparent 100%);
+        transform: translateY(100%);
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        pointer-events: auto;
+        z-index: 20;
+    }
+
+    #check-in-view.active {
+        transform: translateY(0);
+    }
+
+    .check-in-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 24px;
+        text-align: center;
+        letter-spacing: -0.01em;
+    }
+
+    .emotion-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .emotion-card {
+        padding: 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--ink-faint);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+
+    .emotion-card .color-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .emotion-card[data-type="steady"] { background: var(--paper); }
+    .emotion-card[data-type="steady"] .color-dot { background: var(--accent-green); }
+    
+    .emotion-card[data-type="drifting"] { background: var(--paper); }
+    .emotion-card[data-type="drifting"] .color-dot { background: var(--accent-yellow); }
+    
+    .emotion-card[data-type="overwhelmed"] { background: var(--paper); }
+    .emotion-card[data-type="overwhelmed"] .color-dot { background: var(--accent-red); }
+
+    .emotion-card[data-type="pause"] { background: var(--paper); }
+    .emotion-card[data-type="pause"] .color-dot { background: var(--accent-blue); }
+
+    
+    #overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.1);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.5s;
+        z-index: 15;
+    }
+    #overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+</style>
+</head>
+<body vid="6">
+
+
+<div id="canvas-container" vid="7"></div>
+
+
+<div class="ambient-text" id="word-in" vid="8">in</div>
+<div class="ambient-text" id="word-the" vid="9">the</div>
+<div class="ambient-text" id="word-grand" vid="10">grand</div>
+<div class="ambient-text" id="word-scheme" vid="11">scheme</div>
+<div class="ambient-text" id="word-of" vid="12">of</div>
+<div class="ambient-text" id="word-things" vid="13">things</div>
+
+
+<div id="ui-layer" vid="14">
+    
+    <div class="dynamic-island" id="dynamic-island" vid="15">
+        <div class="island-dot" id="island-dot" vid="16"></div>
+        <span id="island-text" vid="17">steady route</span>
+    </div>
+
+    <svg id="tension-line" preserveAspectRatio="none" vid="18">
+        <path class="string" d="M 50% 0 Q 50% 20% 50% 20%" id="string-path" vid="19"></path>
+    </svg>
+
+    <div id="pull-handle" vid="20">
+        <div class="note-card" vid="21">
+            <div class="note-text" vid="22">You are here.</div>
+            <div class="note-subtext" vid="23">Pull to check in</div>
+        </div>
+        <div class="pull-indicator" vid="24">
+            <svg viewBox="0 0 24 24" vid="25"><path d="M12 5v14M19 12l-7 7-7-7" vid="26"></path></svg>
+        </div>
+    </div>
+</div>
+
+
+<div id="overlay" vid="27"></div>
+<div id="check-in-view" vid="28">
+    <div class="check-in-title" vid="29">Where are you drifting?</div>
+    <div class="emotion-grid" vid="30">
+        <div class="emotion-card" data-type="steady" vid="31">
+            <div class="color-dot" vid="32"></div>
+            <span vid="33">Holding steady</span>
+        </div>
+        <div class="emotion-card" data-type="drifting" vid="34">
+            <div class="color-dot" vid="35"></div>
+            <span vid="36">Drifting away</span>
+        </div>
+        <div class="emotion-card" data-type="overwhelmed" vid="37">
+            <div class="color-dot" vid="38"></div>
+            <span vid="39">Tension high</span>
+        </div>
+        <div class="emotion-card" data-type="pause" vid="40">
+            <div class="color-dot" vid="41"></div>
+            <span vid="42">Need a pause</span>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" vid="43"></script>
+<script vid="44">
+    
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+    container.appendChild(renderer.domElement);
+
+    const vertexShader = `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = vec4(position, 1.0);
+        }
+    `;
+
+    const fragmentShader = `
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        varying vec2 vUv;
+
+        // Simplex 2D noise
+        vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        float snoise(vec2 v){
+            const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+            vec2 i  = floor(v + dot(v, C.yy) );
+            vec2 x0 = v -   i + dot(i, C.xx);
+            vec2 i1;
+            i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec4 x12 = x0.xyxy + C.xxzz;
+            x12.xy -= i1;
+            i = mod(i, 289.0);
+            vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+            m = m*m ;
+            m = m*m ;
+            vec3 x = 2.0 * fract(p * C.www) - 1.0;
+            vec3 h = abs(x) - 0.5;
+            vec3 ox = floor(x + 0.5);
+            vec3 a0 = x - ox;
+            m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+            vec3 g;
+            g.x  = a0.x  * x0.x  + h.x  * x0.y;
+            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+            return 130.0 * dot(m, g);
+        }
+
+        // Fractal Brownian Motion
+        float fbm(vec2 x) {
+            float v = 0.0;
+            float a = 0.5;
+            vec2 shift = vec2(100.0);
+            mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+            for (int i = 0; i < 5; ++i) {
+                v += a * snoise(x);
+                x = rot * x * 2.0 + shift;
+                a *= 0.5;
+            }
+            return v;
+        }
+
+        void main() {
+            vec2 st = gl_FragCoord.xy/u_resolution.xy;
+            st.x *= u_resolution.x/u_resolution.y;
+
+            vec2 q = vec2(0.);
+            q.x = fbm( st + 0.00 * u_time);
+            q.y = fbm( st + vec2(1.0));
+
+            vec2 r = vec2(0.);
+            r.x = fbm( st + 1.0*q + vec2(1.7,9.2)+ 0.15*u_time );
+            r.y = fbm( st + 1.0*q + vec2(8.3,2.8)+ 0.126*u_time);
+
+            float f = fbm(st+r);
+
+            // Colors based on reference inventory
+            vec3 colorBlueDark = vec3(0.11, 0.49, 0.89); // #1d7ee3
+            vec3 colorBlueLight = vec3(0.70, 0.84, 0.92); // #b3d7eb
+            vec3 colorCloudWhite = vec3(0.91, 0.92, 0.87); // #e8eade
+
+            vec3 mix1 = mix(colorBlueDark, colorBlueLight, clamp((f*f)*4.0,0.0,1.0));
+            vec3 mix2 = mix(mix1, colorCloudWhite, clamp(length(q),0.0,1.0));
+            vec3 finalColor = mix(mix2, colorBlueDark, clamp(length(r.x),0.0,1.0));
+
+            // Risograph / Paper Grain
+            float noise = fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            finalColor -= (noise * 0.08); // Subtract noise for grainy texture
+
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    `;
+
+    const uniforms = {
+        u_time: { value: 0.0 },
+        u_resolution: { value: new THREE.Vector2() }
+    };
+
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const material = new THREE.ShaderMaterial({
+        uniforms: uniforms,
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    function resizeCanvas() {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        uniforms.u_resolution.value.x = window.innerWidth;
+        uniforms.u_resolution.value.y = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function animate(time) {
+        uniforms.u_time.value = time * 0.0005; 
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+
+    
+    const handle = document.getElementById('pull-handle');
+    const stringPath = document.getElementById('string-path');
+    const svgLine = document.getElementById('tension-line');
+    const ambientTexts = document.querySelectorAll('.ambient-text');
+    const checkInView = document.getElementById('check-in-view');
+    const overlay = document.getElementById('overlay');
+    const island = document.getElementById('dynamic-island');
+    const islandText = document.getElementById('island-text');
+    const islandDot = document.getElementById('island-dot');
+
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+    let baseTop = window.innerHeight * 0.2; 
+    let maxDrag = window.innerHeight * 0.5; 
+    let state = 'steady'; 
+
+    
+    handle.style.top = `${baseTop}px`;
+    updateString(baseTop);
+
+    function updateString(handleY) {
+        
+        const svgW = window.innerWidth;
+        const startX = svgW / 2;
+        const controlY = handleY * 0.5; 
+        
+        
+        stringPath.setAttribute('d', `M ${startX} 0 Q ${startX} ${controlY} ${startX} ${handleY}`);
+    }
+
+    handle.addEventListener('touchstart', (e) => {
+        if(state === 'checkin') return;
+        isDragging = true;
+        startY = e.touches[0].clientY - currentY;
+        handle.style.transition = 'none';
+        stringPath.style.transition = 'none';
+        
+        
+        island.style.transform = 'scale(0.95)';
+        islandText.innerText = 'tension...';
+        islandDot.style.background = 'var(--accent-yellow)';
+        ambientTexts.forEach(el => el.classList.add('hidden'));
+    }, {passive: false});
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        
+        let y = e.touches[0].clientY - startY;
+        
+        
+        if (y > 0) {
+            y = y * 0.6; 
+        } else {
+            y = 0; 
+        }
+
+        currentY = y;
+        let actualTop = baseTop + currentY;
+        
+        handle.style.transform = `translate(-50%, ${currentY}px)`;
+        updateString(actualTop);
+
+        
+        if (currentY > maxDrag * 0.8) {
+            islandText.innerText = 'release to anchor';
+            islandDot.style.background = 'var(--accent-red)';
+            document.querySelector('.pull-indicator svg').style.transform = 'rotate(180deg)';
+            document.querySelector('.pull-indicator svg').style.transition = 'transform 0.3s';
+        } else {
+            islandText.innerText = 'drifting...';
+            islandDot.style.background = 'var(--accent-yellow)';
+            document.querySelector('.pull-indicator svg').style.transform = 'rotate(0deg)';
+        }
+
+    }, {passive: false});
+
+    window.addEventListener('touchend', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        if (currentY > maxDrag * 0.8) {
+            
+            state = 'checkin';
+            
+            
+            stringPath.style.transition = 'd 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            updateString(0); 
+            stringPath.style.strokeOpacity = '0';
+            
+            
+            handle.style.transition = 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
+            handle.style.transform = `translate(-50%, -200px)`;
+
+            
+            checkInView.classList.add('active');
+            overlay.classList.add('active');
+            
+            islandText.innerText = 'check in';
+            islandDot.style.background = 'var(--accent-blue)';
+            island.style.transform = 'scale(1)';
+
+        } else {
+            
+            handle.style.transition = 'transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            stringPath.style.transition = 'd 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            currentY = 0;
+            handle.style.transform = `translate(-50%, 0px)`;
+            updateString(baseTop);
+            
+            island.style.transform = 'scale(1)';
+            islandText.innerText = 'steady route';
+            islandDot.style.background = 'var(--accent-green)';
+            ambientTexts.forEach(el => el.classList.remove('hidden'));
+        }
+    });
+
+    
+    overlay.addEventListener('click', resetView);
+    document.querySelectorAll('.emotion-card').forEach(card => {
+        card.addEventListener('click', () => {
+            
+            islandText.innerText = card.querySelector('span').innerText.toLowerCase();
+            islandDot.style.background = window.getComputedStyle(card.querySelector('.color-dot')).backgroundColor;
+            setTimeout(resetView, 300);
+        });
+    });
+
+    function resetView() {
+        state = 'steady';
+        checkInView.classList.remove('active');
+        overlay.classList.remove('active');
+        
+        
+        handle.style.transition = 'transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        handle.style.transform = `translate(-50%, 0px)`;
+        
+        stringPath.style.transition = 'd 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), stroke-opacity 0.3s';
+        stringPath.style.strokeOpacity = '0.3';
+        updateString(baseTop);
+        
+        ambientTexts.forEach(el => el.classList.remove('hidden'));
+        document.querySelector('.pull-indicator svg').style.transform = 'rotate(0deg)';
+        
+        if(islandText.innerText === 'check in') {
+            islandText.innerText = 'steady route';
+            islandDot.style.background = 'var(--accent-green)';
+        }
+    }
+
+    
+    window.addEventListener('resize', () => {
+        baseTop = window.innerHeight * 0.2;
+        maxDrag = window.innerHeight * 0.5;
+        if(state === 'steady') {
+            handle.style.top = `${baseTop}px`;
+            updateString(baseTop);
+        }
+    });
+
+</script>
+
+</body></html>

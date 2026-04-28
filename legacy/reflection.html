@@ -1,0 +1,392 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Reflection</title>
+    
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&display=swap');
+
+        :root {
+            --bg-canvas: #F2EFE8;
+            --ink-main: #3A3C38;
+            --ink-light: #7A8078;
+            --ink-sage: #A0AA98;
+            --accent-green: #6CA350;
+            
+            --card-rose: #EADCDA;
+            --card-flax: #E6E3CC;
+            --card-glass: #D2DBD6;
+
+            --font-serif: 'Newsreader', serif;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --radius-soft: 20px;
+            --radius-pill: 40px;
+            --ease-spring: cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-canvas);
+            color: var(--ink-main);
+            font-family: var(--font-sans);
+            overscroll-behavior-y: none; 
+        }
+
+        #app-frame {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 430px; 
+            margin: 0 auto;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.05); 
+        }
+
+        #canvas-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #ui-layer {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; 
+            padding-bottom: 32px;
+        }
+
+        header {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 12px;
+            pointer-events: auto;
+        }
+
+        .dynamic-island {
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--radius-pill);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: -0.2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.4s var(--ease-spring);
+        }
+
+        .island-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ink-sage);
+        }
+
+        .island-text {
+            opacity: 0.9;
+        }
+
+        #reflection-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 32px;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        .closing-note {
+            font-family: var(--font-serif);
+            font-size: 28px;
+            font-style: italic;
+            color: var(--ink-main);
+            line-height: 1.2;
+            letter-spacing: -0.5px;
+            margin-bottom: 48px;
+            max-width: 280px;
+        }
+
+        .stats-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 0.5px solid rgba(0,0,0,0.06);
+            border-radius: var(--radius-soft);
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-card.rose { background: linear-gradient(135deg, rgba(234, 220, 218, 0.6), rgba(255,255,255,0.3)); }
+        .stat-card.flax { background: linear-gradient(135deg, rgba(230, 227, 204, 0.6), rgba(255,255,255,0.3)); }
+
+        .stat-info {
+            text-align: left;
+        }
+
+        .stat-label {
+            font-family: var(--font-sans);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-family: var(--font-serif);
+            font-size: 24px;
+            color: var(--ink-main);
+        }
+
+        .stat-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-canvas);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 0.5px solid rgba(0,0,0,0.08);
+        }
+
+        .stat-icon svg {
+            width: 16px;
+            height: 16px;
+            stroke: var(--ink-light);
+            stroke-width: 1.5;
+            fill: none;
+        }
+
+        .btn-done {
+            margin-top: 48px;
+            background: transparent;
+            border: 1px solid var(--ink-main);
+            color: var(--ink-main);
+            padding: 14px 40px;
+            border-radius: var(--radius-pill);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-done:active {
+            background: var(--ink-main);
+            color: var(--bg-canvas);
+            transform: scale(0.98);
+        }
+
+    </style>
+</head>
+<body vid="6">
+
+<div id="app-frame" vid="7">
+    <canvas id="canvas-bg" vid="8"></canvas>
+
+    <div id="ui-layer" vid="9">
+        <header vid="10">
+            <div class="dynamic-island" id="dynamic-island" vid="11">
+                <div class="island-dot" id="island-dot" vid="12"></div>
+                <div class="island-text" id="island-text" vid="13">Session Complete</div>
+            </div>
+        </header>
+
+        <div id="reflection-content" vid="14">
+            <div class="closing-note" vid="15">
+                "Time spent away is not time lost. Welcome back."
+            </div>
+
+            <div class="stats-container" vid="16">
+                <div class="stat-card flax" vid="17">
+                    <div class="stat-info" vid="18">
+                        <div class="stat-label" vid="19">Time Drifting</div>
+                        <div class="stat-value" vid="20">42m</div>
+                    </div>
+                    <div class="stat-icon" vid="21">
+                        <svg viewBox="0 0 24 24" vid="22"><circle cx="12" cy="12" r="10" vid="23"></circle><polyline points="12 6 12 12 16 14" vid="24"></polyline></svg>
+                    </div>
+                </div>
+
+                <div class="stat-card rose" vid="25">
+                    <div class="stat-info" vid="26">
+                        <div class="stat-label" vid="27">Returns Made</div>
+                        <div class="stat-value" vid="28">3</div>
+                    </div>
+                    <div class="stat-icon" vid="29">
+                        <svg viewBox="0 0 24 24" vid="30"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" vid="31"></path><path d="M3 3v5h5" vid="32"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-done" vid="33">Close</button>
+        </div>
+    </div>
+</div>
+
+<script id="vertex-shader" type="x-shader/x-vertex" vid="34">
+    attribute vec2 position;
+    varying vec2 vUv;
+    void main() {
+        vUv = position * 0.5 + 0.5;
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment" vid="35">
+    precision highp float;
+    varying vec2 vUv;
+    uniform vec2 u_resolution;
+    uniform float u_time;
+
+    vec3 colCanvas = vec3(242.0/255.0, 239.0/255.0, 232.0/255.0);
+    vec3 colSlate = vec3(96.0/255.0, 108.0/255.0, 120.0/255.0);
+    vec3 colSage = vec3(91.0/255.0, 117.0/255.0, 100.0/255.0);
+
+    float hash(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+    }
+
+    float sdFuzzyStar(vec2 p, float n, float r, float rotation) {
+        float s = sin(rotation);
+        float c = cos(rotation);
+        p = vec2(c*p.x - s*p.y, s*p.x + c*p.y);
+        float angle = atan(p.y, p.x);
+        float radius = length(p);
+        float shape = cos(angle * n) * 0.15 + r;
+        return radius - shape;
+    }
+
+    void main() {
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        vec2 p = uv * 2.0 - 1.0;
+        p.x *= u_resolution.x / u_resolution.y;
+
+        vec3 color = colCanvas;
+
+        
+        vec2 pos1 = p - vec2(0.3 + sin(u_time*0.05)*0.1, 0.6 + cos(u_time*0.07)*0.1);
+        float d1 = sdFuzzyStar(pos1, 5.0, 0.25, u_time * 0.02);
+        float mask1 = smoothstep(0.5, -0.2, d1); 
+        vec3 shape1Color = mix(colCanvas, colSage, mask1 * 0.4); 
+
+        vec2 pos2 = p - vec2(-0.2 + cos(u_time*0.06)*0.1, -0.1 + sin(u_time*0.04)*0.1);
+        float d2 = sdFuzzyStar(pos2, 6.0, 0.4, -u_time * 0.015);
+        float mask2 = smoothstep(0.7, -0.2, d2);
+        vec3 shape2Color = mix(colCanvas, colSlate, mask2 * 0.5);
+
+        color = mix(color, shape1Color, mask1);
+        color = mix(color, shape2Color, mask2);
+
+        float grain = hash(uv * u_resolution.xy);
+        color = mix(color, color - 0.1, grain * 0.15);
+        
+        float weaveX = sin(uv.x * u_resolution.x * 2.0) * 0.5 + 0.5;
+        float weaveY = sin(uv.y * u_resolution.y * 2.0) * 0.5 + 0.5;
+        color *= 1.0 - (weaveX * 0.01);
+        color *= 1.0 - (weaveY * 0.01);
+
+        gl_FragColor = vec4(color, 1.0);
+    }
+</script>
+
+<script vid="36">
+    const canvas = document.getElementById('canvas-bg');
+    const gl = canvas.getContext('webgl');
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const vsSource = document.getElementById('vertex-shader').text;
+    const fsSource = document.getElementById('fragment-shader').text;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        return shader;
+    }
+
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    const vertices = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const positionLocation = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+    const timeLocation = gl.getUniformLocation(program, 'u_time');
+
+    function renderBackground(time) {
+        gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+        gl.uniform1f(timeLocation, time * 0.001);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(renderBackground);
+    }
+    requestAnimationFrame(renderBackground);
+</script>
+
+</body></html>

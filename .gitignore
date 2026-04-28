@@ -1,0 +1,13 @@
+# Dependencies & build
+app/node_modules/
+app/dist/
+*.local
+
+# Vite
+app/vite.config.ts.timestamp-*
+
+# OS / IDE
+.DS_Store
+*.log
+.env
+.env.*

@@ -1,0 +1,645 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Intention Ritual</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" vid="5"></script>
+    <style vid="6">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap');
+
+        :root {
+            --ink: #1a1a1a;
+            --ink-light: rgba(26, 26, 26, 0.3);
+            --ink-faint: rgba(26, 26, 26, 0.1);
+            --paper: #fbfbfa;
+            --paper-translucent: rgba(251, 251, 250, 0.85);
+            --accent-red: #F4B3AE;
+            --accent-green: #CDE2B8;
+            --accent-yellow: #F9E9A9;
+            --accent-blue: #AECDF4;
+            
+            --spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--ink);
+            overscroll-behavior: none;
+        }
+
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; 
+        }
+
+        
+        .ambient-word {
+            position: absolute;
+            font-weight: 700;
+            font-size: 11.5px;
+            letter-spacing: -0.03em;
+            color: var(--ink);
+            opacity: 0.85;
+        }
+        
+        
+        .aw-1 { top: 12%; left: 10%; }
+        .aw-2 { top: 12%; right: 10%; }
+        .aw-3 { top: 50%; left: 10%; transform: translateY(-50%); }
+        .aw-4 { top: 50%; right: 10%; transform: translateY(-50%); }
+        .aw-5 { bottom: 12%; left: 10%; }
+        .aw-6 { bottom: 12%; right: 10%; }
+
+        
+        .dynamic-island {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--ink);
+            color: var(--paper);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.4s var(--ease);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            pointer-events: auto;
+        }
+
+        .island-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            transition: background 0.3s ease;
+        }
+
+        
+        .interaction-zone {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            position: relative;
+            margin-top: 120px;
+            pointer-events: auto;
+        }
+
+        
+        .tether-container {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 400px; 
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .tether-line {
+            stroke: var(--ink);
+            stroke-width: 1px;
+            fill: none;
+            stroke-dasharray: 4 2;
+            opacity: 0.4;
+            transition: stroke-dasharray 0.2s ease, opacity 0.2s ease;
+        }
+
+        .tether-line.active {
+            stroke-dasharray: none;
+            opacity: 0.8;
+            stroke-width: 1.5px;
+        }
+
+        
+        .pull-handle {
+            position: absolute;
+            top: 0; 
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--paper-translucent);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--ink-faint);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: transform 0.1s ease-out; 
+            z-index: 20;
+        }
+
+        .pull-handle:active {
+            cursor: grabbing;
+        }
+
+        .handle-inner {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ink);
+            transition: transform 0.3s var(--spring);
+        }
+
+        .pull-handle.dragging .handle-inner {
+            transform: scale(0.5);
+        }
+
+        
+        .note-card {
+            position: absolute;
+            top: 80px;
+            width: 240px;
+            background: var(--paper);
+            padding: 24px;
+            border-radius: 2px; 
+            box-shadow: 
+                0 12px 24px -6px rgba(0,0,0,0.1),
+                0 0 0 1px var(--ink-faint);
+            opacity: 0;
+            transform: translateY(-20px) rotate(2deg) scale(0.95);
+            transition: all 0.5s var(--spring);
+            pointer-events: none;
+        }
+
+        .note-card.revealed {
+            opacity: 1;
+            transform: translateY(0) rotate(-1deg) scale(1);
+            pointer-events: auto;
+        }
+
+        .note-header {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ink-light);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .note-body {
+            font-size: 13px;
+            line-height: 1.5;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        
+        .note-input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.5;
+            font-weight: 600;
+            color: var(--ink);
+            outline: none;
+            resize: none;
+            margin-top: 8px;
+            border-bottom: 1px dashed var(--ink-light);
+            padding-bottom: 4px;
+        }
+
+        
+        .widgets-container {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            padding: 0 24px;
+            display: flex;
+            gap: 12px;
+            pointer-events: auto;
+            overflow-x: auto;
+            scrollbar-width: none; 
+        }
+        
+        .widgets-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .widget {
+            flex: 0 0 auto;
+            padding: 12px 16px;
+            border-radius: 16px;
+            background: var(--paper-translucent);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--ink-faint);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        .widget-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .w-red .widget-icon { background: var(--accent-red); }
+        .w-green .widget-icon { background: var(--accent-green); }
+        .w-yellow .widget-icon { background: var(--accent-yellow); }
+
+        .widget-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .widget-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--ink-light);
+        }
+
+        
+        .ground-line {
+            position: absolute;
+            bottom: 20px;
+            left: 24px;
+            right: 24px;
+            height: 1px;
+            background: var(--ink-faint);
+        }
+    </style>
+</head>
+<body vid="7">
+
+    
+    <div id="canvas-container" vid="8"></div>
+
+    <div id="ui-layer" vid="9">
+        
+        <div class="ambient-word aw-1" vid="10">in</div>
+        <div class="ambient-word aw-2" vid="11">the</div>
+        <div class="ambient-word aw-3" vid="12">grand</div>
+        <div class="ambient-word aw-4" vid="13">scheme</div>
+        <div class="ambient-word aw-5" vid="14">of</div>
+        <div class="ambient-word aw-6" vid="15">things</div>
+
+        
+        <div class="dynamic-island" id="island" vid="16">
+            <div class="island-dot" id="island-dot" vid="17"></div>
+            <span id="island-text" vid="18">steady</span>
+        </div>
+
+        
+        <div class="interaction-zone" vid="19">
+            
+            <svg class="tether-container" viewBox="0 0 100 400" preserveAspectRatio="xMidYMin slice" vid="20">
+                <path id="tether" class="tether-line" d="M 50,0 Q 50,0 50,0" vid="21"></path>
+            </svg>
+
+            <div class="pull-handle" id="handle" vid="22">
+                <div class="handle-inner" vid="23"></div>
+            </div>
+
+            <div class="note-card" id="note" vid="24">
+                <div class="note-header" vid="25">
+                    <span vid="26">Intention</span>
+                    <span id="timestamp" vid="27">08:42</span>
+                </div>
+                <div class="note-body" vid="28">
+                    What is pulling you right now?
+                    <input type="text" class="note-input" placeholder="write to release..." spellcheck="false" vid="29">
+                </div>
+            </div>
+
+        </div>
+
+        
+        <div class="widgets-container" vid="30">
+            <div class="widget w-green" vid="31">
+                <div class="widget-icon" vid="32"></div>
+                <div class="widget-text" vid="33">
+                    <span class="widget-label" vid="34">Status</span>
+                    <span vid="35">Route Clear</span>
+                </div>
+            </div>
+            <div class="widget w-yellow" vid="36">
+                <div class="widget-icon" vid="37"></div>
+                <div class="widget-text" vid="38">
+                    <span class="widget-label" vid="39">Drift</span>
+                    <span vid="40">Slight</span>
+                </div>
+            </div>
+            <div class="widget w-red" vid="41">
+                <div class="widget-icon" vid="42"></div>
+                <div class="widget-text" vid="43">
+                    <span class="widget-label" vid="44">Anchor</span>
+                    <span vid="45">Drop</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="ground-line" vid="46"></div>
+    </div>
+
+    
+    <script vid="47">
+        
+        const now = new Date();
+        document.getElementById('timestamp').innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+        container.appendChild(renderer.domElement);
+
+        const vertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = vec4(position, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform float u_time;
+            uniform vec2 u_resolution;
+            uniform float u_tension; // Passed from JS drag
+            varying vec2 vUv;
+
+            // Random function
+            float random(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
+
+            // 2D Noise based on Morgan McGuire @morgan3d
+            float noise(vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+                float a = random(i);
+                float b = random(i + vec2(1.0, 0.0));
+                float c = random(i + vec2(0.0, 1.0));
+                float d = random(i + vec2(1.0, 1.0));
+                vec2 u = f*f*(3.0-2.0*f);
+                return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+            }
+
+            // Fractional Brownian Motion
+            float fbm(vec2 st) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                float frequency = 0.;
+                for (int i = 0; i < 5; i++) {
+                    value += amplitude * noise(st);
+                    st *= 2.0;
+                    amplitude *= 0.5;
+                }
+                return value;
+            }
+
+            void main() {
+                vec2 st = gl_FragCoord.xy/u_resolution.xy;
+                st.x *= u_resolution.x/u_resolution.y;
+
+                // Animate coordinates slowly, respond slightly to tension
+                vec2 pos = st * 3.0;
+                pos.y += u_time * 0.02 + (u_tension * 0.1);
+                pos.x -= u_time * 0.01;
+
+                // Create cloudy layers
+                float q = fbm(pos);
+                vec2 r = vec2(fbm(pos + q + u_time * 0.05), fbm(pos + q - u_time * 0.02));
+                float f = fbm(pos + r);
+
+                // Colors derived from reference image inventory
+                vec3 colorDarkBlue = vec3(0.09, 0.44, 0.90);  // #1871E6 approx
+                vec3 colorLightBlue = vec3(0.42, 0.74, 0.95); // #6DBDF4 approx
+                vec3 colorCream = vec3(0.92, 0.92, 0.75);     // #EBECC0 approx
+                
+                // Mix colors based on fbm value
+                vec3 color = mix(colorDarkBlue, colorLightBlue, smoothstep(0.1, 0.6, f));
+                color = mix(color, colorCream, smoothstep(0.4, 0.9, q));
+
+                // Add analog grain/noise over the top
+                float grain = random(st * (u_time + 1.0));
+                color += (grain - 0.5) * 0.08;
+
+                // Soft vignette
+                float dist = distance(vUv, vec2(0.5));
+                color *= smoothstep(0.8, 0.2, dist * 0.8);
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        const uniforms = {
+            u_time: { value: 0.0 },
+            u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            u_tension: { value: 0.0 }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader,
+            fragmentShader,
+            uniforms
+        });
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        function animate(time) {
+            uniforms.u_time.value = time * 0.001;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+        });
+
+        
+        const handle = document.getElementById('handle');
+        const tether = document.getElementById('tether');
+        const note = document.getElementById('note');
+        const island = document.getElementById('island');
+        const islandText = document.getElementById('island-text');
+        const islandDot = document.getElementById('island-dot');
+
+        let isDragging = false;
+        let startY = 0;
+        let currentY = 0;
+        let tension = 0; 
+        const MAX_PULL = 200; 
+        const REVEAL_THRESHOLD = 80;
+
+        
+        let springY = 0;
+        let velocity = 0;
+        let animationFrame;
+
+        
+        handle.addEventListener('touchstart', dragStart, {passive: false});
+        handle.addEventListener('mousedown', dragStart);
+        
+        window.addEventListener('touchmove', dragMove, {passive: false});
+        window.addEventListener('mousemove', dragMove);
+        
+        window.addEventListener('touchend', dragEnd);
+        window.addEventListener('mouseup', dragEnd);
+
+        function dragStart(e) {
+            isDragging = true;
+            startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            cancelAnimationFrame(animationFrame);
+            handle.classList.add('dragging');
+            tether.classList.add('active');
+        }
+
+        function dragMove(e) {
+            if (!isDragging) return;
+            e.preventDefault(); 
+
+            const y = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            let deltaY = y - startY;
+
+            
+            if (deltaY > 0) {
+                
+                currentY = MAX_PULL * Math.log10(1 + (deltaY / MAX_PULL) * 2);
+            } else {
+                currentY = 0; 
+            }
+
+            tension = Math.min(currentY / MAX_PULL, 1);
+            updateVisuals();
+        }
+
+        function dragEnd() {
+            if (!isDragging) return;
+            isDragging = false;
+            handle.classList.remove('dragging');
+            tether.classList.remove('active');
+
+            
+            if (currentY > REVEAL_THRESHOLD) {
+                note.classList.add('revealed');
+                islandText.innerText = "restoring";
+                islandDot.style.background = "var(--accent-blue)";
+                island.style.transform = "translateX(-50%) scale(1.05)";
+                setTimeout(() => {
+                    island.style.transform = "translateX(-50%) scale(1)";
+                }, 200);
+            } else {
+                note.classList.remove('revealed');
+            }
+
+            
+            springBack();
+        }
+
+        function springBack() {
+            const stiffness = 0.15;
+            const damping = 0.7;
+
+            const force = -stiffness * currentY;
+            velocity += force;
+            velocity *= damping;
+            currentY += velocity;
+
+            tension = Math.min(currentY / MAX_PULL, 1);
+            updateVisuals();
+
+            if (Math.abs(velocity) > 0.1 || Math.abs(currentY) > 0.1) {
+                animationFrame = requestAnimationFrame(springBack);
+            } else {
+                currentY = 0;
+                tension = 0;
+                updateVisuals();
+                
+                
+                if (!note.classList.contains('revealed')) {
+                    islandText.innerText = "steady";
+                    islandDot.style.background = "var(--accent-green)";
+                }
+            }
+        }
+
+        function updateVisuals() {
+            
+            handle.style.transform = `translateY(${currentY}px)`;
+
+            
+            
+            
+            const cpY = currentY * 0.5;
+            const curve = currentY * 0.1; 
+            tether.setAttribute('d', `M 50,0 Q ${50 + curve},${cpY} 50,${currentY}`);
+
+            
+            uniforms.u_tension.value = tension;
+
+            
+            if (isDragging && !note.classList.contains('revealed')) {
+                if (currentY > 20 && currentY < REVEAL_THRESHOLD) {
+                    islandText.innerText = "drifting";
+                    islandDot.style.background = "var(--accent-red)";
+                } else if (currentY >= REVEAL_THRESHOLD) {
+                    islandText.innerText = "release to drop anchor";
+                    islandDot.style.background = "var(--accent-yellow)";
+                }
+            }
+            
+            
+            if(!note.classList.contains('revealed')) {
+                const noteY = -20 + (currentY * 0.3);
+                note.style.transform = `translateY(${noteY}px) rotate(2deg) scale(0.95)`;
+            }
+        }
+
+    </script>
+
+</body></html>

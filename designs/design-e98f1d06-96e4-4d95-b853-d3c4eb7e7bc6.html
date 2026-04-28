@@ -1,0 +1,732 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Soft iOS Experience</title>
+    
+    
+
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --charcoal: #1E1C1A;
+            --paper: rgba(244, 241, 234, 0.85);
+            --paper-solid: #F4F1EA;
+            --border: rgba(30, 28, 26, 0.08);
+            --border-hover: rgba(30, 28, 26, 0.15);
+            
+            
+            --accent-red-bg: #FDEAEA;
+            --accent-red-fg: #C45555;
+            --accent-green-bg: #EAFDF0;
+            --accent-green-fg: #47A064;
+            --accent-yellow-bg: #FDF8EA;
+            --accent-yellow-fg: #B88E28;
+            --accent-blue-bg: #EAF4FD;
+            --accent-blue-fg: #5587C4;
+
+            --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+            --ease-out: cubic-bezier(0.21, 0.93, 0.38, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #E8D5A3; 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--charcoal);
+            overscroll-behavior-y: none; 
+        }
+
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            padding: env(safe-area-inset-top, 24px) 24px env(safe-area-inset-bottom, 32px) 24px;
+        }
+
+        
+        .meta-label {
+            position: absolute;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            opacity: 0.7;
+            text-transform: lowercase;
+            mix-blend-mode: overlay;
+        }
+        .meta-label.tl { top: max(48px, env(safe-area-inset-top, 48px)); left: 24px; }
+        .meta-label.tr { top: max(48px, env(safe-area-inset-top, 48px)); right: 24px; }
+        .meta-label.cl { top: 50%; left: 24px; transform: translateY(-50%); }
+        .meta-label.cr { top: 50%; right: 24px; transform: translateY(-50%); }
+        .meta-label.bl { bottom: max(120px, env(safe-area-inset-bottom, 120px)); left: 24px; }
+        .meta-label.br { bottom: max(120px, env(safe-area-inset-bottom, 120px)); right: 24px; }
+
+        
+        .status-island {
+            align-self: center;
+            background: var(--paper);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 0.5px solid var(--border);
+            border-radius: 40px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.03);
+            margin-top: 12px;
+            z-index: 20;
+            transition: all 0.3s var(--ease-out);
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .dot.steady { background-color: var(--accent-green-fg); box-shadow: 0 0 8px var(--accent-green-fg); }
+        .dot.drifting { background-color: var(--accent-yellow-fg); box-shadow: 0 0 8px var(--accent-yellow-fg); }
+
+        .status-text {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        
+        .pull-system {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 60%;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 15;
+            pointer-events: none; 
+        }
+
+        
+        #tension-line {
+            width: 1px;
+            height: 0px; 
+            background-color: var(--charcoal);
+            opacity: 0.2;
+            transform-origin: top;
+            margin-top: max(80px, env(safe-area-inset-top, 80px));
+        }
+
+        
+        .pull-handle-container {
+            pointer-events: auto;
+            position: absolute;
+            top: max(80px, env(safe-area-inset-top, 80px));
+            touch-action: none; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .pull-handle {
+            background: var(--paper);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 0.5px solid var(--border);
+            border-radius: 24px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.6);
+            cursor: grab;
+            transition: transform 0.1s linear, border-radius 0.3s var(--ease-out), width 0.3s var(--ease-out), padding 0.3s var(--ease-out);
+            width: 140px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pull-handle:active {
+            cursor: grabbing;
+        }
+
+        .handle-label {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--charcoal);
+            transition: opacity 0.2s var(--ease-out);
+            white-space: nowrap;
+        }
+
+        
+        .revealed-content {
+            opacity: 0;
+            height: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: opacity 0.3s var(--ease-out);
+        }
+
+        .prompt-text {
+            font-size: 18px;
+            font-weight: 500;
+            line-height: 1.3;
+            letter-spacing: -0.03em;
+            margin-top: 16px;
+            margin-bottom: 24px;
+            color: var(--charcoal);
+        }
+
+        .action-btn {
+            background: var(--charcoal);
+            color: var(--paper-solid);
+            border: none;
+            border-radius: 30px;
+            padding: 10px 24px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            cursor: pointer;
+            pointer-events: none; 
+        }
+
+        
+        .pull-handle-container.is-open .pull-handle {
+            width: 320px;
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .pull-handle-container.is-open .handle-label {
+            opacity: 0;
+            height: 0;
+            position: absolute;
+        }
+        .pull-handle-container.is-open .revealed-content {
+            opacity: 1;
+            height: auto;
+        }
+        .pull-handle-container.is-open .action-btn {
+            pointer-events: auto;
+        }
+
+        
+        .bottom-system {
+            margin-top: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            z-index: 10;
+        }
+
+        .widget {
+            background: var(--paper);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 0.5px solid var(--border);
+            border-radius: 24px;
+            padding: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .widget-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: rgba(30, 28, 26, 0.5);
+        }
+
+        .tag {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .tag.blue { background: var(--accent-blue-bg); color: var(--accent-blue-fg); }
+        .tag.red { background: var(--accent-red-bg); color: var(--accent-red-fg); }
+        .tag.yellow { background: var(--accent-yellow-bg); color: var(--accent-yellow-fg); } 
+
+        .widget-value {
+            font-size: 24px;
+            font-weight: 500;
+            letter-spacing: -0.04em;
+        }
+        
+        
+        .widget-value.escalating {
+            color: var(--accent-red-fg);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; transform: scale(1.02); transform-origin: left; }
+            100% { opacity: 0.8; }
+        }
+
+        .widget-sub {
+            font-size: 12px;
+            color: rgba(30, 28, 26, 0.6);
+            font-weight: 500;
+        }
+
+        
+        .icon {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    </style>
+</head>
+<body vid="6">
+
+    
+    <div id="canvas-container" vid="7">
+        <canvas id="glcanvas" vid="8"></canvas>
+    </div>
+
+    
+    <div class="ui-layer" vid="9">
+        
+        
+        <div class="meta-label tl" vid="10">sys.tension</div>
+        <div class="meta-label tr" vid="11">drift.log</div>
+        <div class="meta-label cl" vid="12">anchor</div>
+        <div class="meta-label cr" vid="13">route</div>
+        <div class="meta-label bl" vid="14">vol.01</div>
+        <div class="meta-label br" vid="15">p.u.l.l</div>
+
+        
+        <div class="status-island" id="status-island" vid="16">
+            <span class="dot drifting" id="status-dot" vid="17"></span>
+            <span class="status-text" id="status-text" vid="18">Drifting</span>
+        </div>
+
+        
+        <div class="pull-system" vid="19">
+            <div id="tension-line" vid="20"></div>
+            
+            <div class="pull-handle-container" id="pull-container" vid="21">
+                <div class="pull-handle" id="pull-handle" vid="22">
+                    <span class="handle-label" vid="23">pull to check in</span>
+                    
+                    <div class="revealed-content" vid="24">
+                        <svg class="icon" viewBox="0 0 24 24" vid="25"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" vid="26"></path></svg>
+                        <p class="prompt-text" vid="27">Are you acting from intention,<br vid="28">or simply reacting?</p>
+                        <button class="action-btn" id="restore-btn" vid="29">Restore Focus</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="bottom-system" vid="30">
+            
+            <div class="widget" vid="31">
+                <div class="widget-header" vid="32">
+                    <span class="widget-title" vid="33">Current Drift</span>
+                    <span class="tag red" vid="34">Warning</span>
+                </div>
+                <div vid="35">
+                    <div class="widget-value escalating" vid="36" id="drift-distance">48<span style="font-size: 14px; opacity: 0.5;" vid="37">m</span></div>
+                    <div class="widget-sub" vid="38">rapidly diverging</div>
+                </div>
+            </div>
+            
+            
+            <div class="widget" vid="39">
+                <div class="widget-header" vid="40">
+                    <span class="widget-title" vid="41">Last Anchor</span>
+                    <span class="tag blue" vid="42">Logged</span>
+                </div>
+                <div vid="43">
+                    <div class="widget-value" style="font-size: 16px; line-height: 1.4; margin-top: 4px;" vid="44">"Read, don't scroll."</div>
+                    <div class="widget-sub" style="margin-top: 8px;" vid="45">2 hours ago</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    
+    <script vid="46">
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            console.error("WebGL not supported");
+        }
+
+        
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            void main() {
+                gl_Position = aVertexPosition;
+            }
+        `;
+
+        
+        const fsSource = `
+            precision highp float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            // Random function
+            float random (in vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
+
+            // 2D Noise based on Morgan McGuire @morgan3d
+            float noise (in vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+
+                // Four corners in 2D of a tile
+                float a = random(i);
+                float b = random(i + vec2(1.0, 0.0));
+                float c = random(i + vec2(0.0, 1.0));
+                float d = random(i + vec2(1.0, 1.0));
+
+                vec2 u = f * f * (3.0 - 2.0 * f);
+
+                return mix(a, b, u.x) +
+                        (c - a)* u.y * (1.0 - u.x) +
+                        (d - b) * u.x * u.y;
+            }
+
+            // Fractional Brownian Motion
+            #define OCTAVES 5
+            float fbm (in vec2 st) {
+                float value = 0.0;
+                float amplitude = .5;
+                float frequency = 0.;
+                vec2 shift = vec2(100.0);
+                mat2 rot = mat2(cos(0.5), sin(0.5),
+                                -sin(0.5), cos(0.50));
+                for (int i = 0; i < OCTAVES; i++) {
+                    value += amplitude * noise(st);
+                    st = rot * st * 2.0 + shift;
+                    amplitude *= .5;
+                }
+                return value;
+            }
+
+            void main() {
+                vec2 st = gl_FragCoord.xy/u_resolution.xy;
+                st.x *= u_resolution.x/u_resolution.y;
+
+                vec2 q = vec2(0.);
+                // Increased speed for turbulent look
+                q.x = fbm( st + 0.02 * u_time);
+                q.y = fbm( st + vec2(1.0));
+
+                vec2 r = vec2(0.);
+                // More aggressive distortion
+                r.x = fbm( st + 1.5*q + vec2(1.7,9.2)+ 0.04*u_time );
+                r.y = fbm( st + 1.5*q + vec2(8.3,2.8)+ 0.03*u_time);
+
+                float f = fbm(st+r);
+
+                // Colors shifted to warmer/warning tones
+                vec3 colorPaper = vec3(0.957, 0.945, 0.918);
+                // #FDEAEA (Light Red Wash)
+                vec3 colorWarningDark = vec3(0.992, 0.918, 0.918);
+                // #FDF8EA (Light Yellow Wash)
+                vec3 colorWarningLight = vec3(0.992, 0.973, 0.918);
+
+                vec3 color = mix(colorPaper,
+                                colorWarningDark,
+                                clamp((f*f)*4.0,0.0,1.0));
+
+                color = mix(color,
+                            colorWarningLight,
+                            clamp(length(q),0.0,1.0));
+
+                color = mix(color,
+                            colorPaper,
+                            clamp(length(r.x),0.0,1.0));
+
+                // More intense grain
+                float grain = (random(st + u_time * 0.01) - 0.5) * 0.06;
+                color += grain;
+
+                gl_FragColor = vec4((f*f*f+.6*f*f+.5)*color,1.0);
+            }
+        `;
+
+        
+        function initShaderProgram(gl, vsSource, fsSource) {
+            const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                console.error('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+            return shaderProgram;
+        }
+
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: { vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'), },
+            uniformLocations: {
+                resolution: gl.getUniformLocation(shaderProgram, 'u_resolution'),
+                time: gl.getUniformLocation(shaderProgram, 'u_time'),
+            },
+        };
+
+        const buffers = initBuffers(gl);
+        function initBuffers(gl) {
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            const positions = [ -1.0,  1.0,  1.0,  1.0, -1.0, -1.0,  1.0, -1.0, ];
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+            return { position: positionBuffer };
+        }
+
+        let startTime = Date.now();
+
+        function render() {
+            resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.useProgram(programInfo.program);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+            gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+            gl.uniform2f(programInfo.uniformLocations.resolution, gl.canvas.width, gl.canvas.height);
+            gl.uniform1f(programInfo.uniformLocations.time, (Date.now() - startTime) / 1000.0);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            requestAnimationFrame(render);
+        }
+
+        function resizeCanvasToDisplaySize(canvas) {
+            const displayWidth  = canvas.clientWidth;
+            const displayHeight = canvas.clientHeight;
+            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                canvas.width  = displayWidth;
+                canvas.height = displayHeight;
+            }
+        }
+
+        requestAnimationFrame(render);
+
+
+        
+        
+        const pullContainer = document.getElementById('pull-container');
+        const tensionLine = document.getElementById('tension-line');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        const restoreBtn = document.getElementById('restore-btn');
+        const driftDistanceEl = document.getElementById('drift-distance');
+        
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let isOpen = false;
+        
+        const MAX_PULL = 220; 
+        const THRESHOLD = 140; 
+        
+        
+        let currentDrift = 48;
+        setInterval(() => {
+            if(!isOpen) {
+                currentDrift += Math.floor(Math.random() * 3) + 1;
+                driftDistanceEl.innerHTML = `${currentDrift}<span style="font-size: 14px; opacity: 0.5;">m</span>`;
+            }
+        }, 3000);
+
+        
+        pullContainer.addEventListener('pointerdown', (e) => {
+            if (isOpen) return; 
+            isDragging = true;
+            startY = e.clientY - currentY;
+            
+            
+            pullContainer.style.transition = 'none';
+            tensionLine.style.transition = 'none';
+            
+            
+            statusText.innerText = "Checking in...";
+            statusDot.className = "dot drifting";
+            
+            
+            pullContainer.setPointerCapture(e.pointerId);
+        });
+
+        pullContainer.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            
+            
+            let deltaY = e.clientY - startY;
+            
+            
+            if (deltaY > 0) {
+                
+                currentY = deltaY * (1 - (deltaY / (MAX_PULL * 2))); 
+                
+                if(currentY > MAX_PULL) currentY = MAX_PULL;
+            } else {
+                currentY = 0; 
+            }
+
+            
+            pullContainer.style.transform = `translateY(${currentY}px)`;
+            tensionLine.style.height = `${currentY}px`;
+            
+            
+            tensionLine.style.opacity = Math.min(0.8, 0.2 + (currentY / MAX_PULL));
+            
+            
+            const rotate = (e.clientX - window.innerWidth/2) * 0.02 * (currentY/MAX_PULL);
+            pullContainer.querySelector('.pull-handle').style.transform = `rotate(${rotate}deg)`;
+        });
+
+        const releasePull = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            pullContainer.style.transition = 'transform 0.6s var(--ease-spring)';
+            tensionLine.style.transition = 'height 0.6s var(--ease-spring), opacity 0.6s ease';
+            pullContainer.querySelector('.pull-handle').style.transform = `rotate(0deg)`;
+
+            if (currentY > THRESHOLD) {
+                
+                openNote();
+            } else {
+                
+                closeNote();
+            }
+        };
+
+        pullContainer.addEventListener('pointerup', releasePull);
+        pullContainer.addEventListener('pointercancel', releasePull);
+
+        function openNote() {
+            isOpen = true;
+            
+            currentY = THRESHOLD + 20; 
+            pullContainer.style.transform = `translateY(${currentY}px)`;
+            tensionLine.style.height = `${currentY}px`;
+            tensionLine.style.opacity = 0.5;
+            
+            pullContainer.classList.add('is-open');
+            
+            
+            statusText.innerText = "Paused";
+            statusDot.className = "dot drifting"; 
+        }
+
+        function closeNote() {
+            isOpen = false;
+            currentY = 0;
+            pullContainer.style.transform = `translateY(0px)`;
+            tensionLine.style.height = `0px`;
+            tensionLine.style.opacity = 0.2;
+            
+            pullContainer.classList.remove('is-open');
+            
+            
+            statusText.innerText = "Drifting";
+            statusDot.className = "dot drifting";
+        }
+
+        
+        restoreBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            
+            
+            restoreBtn.style.transform = "scale(0.95)";
+            setTimeout(() => {
+                restoreBtn.style.transform = "scale(1)";
+                
+                currentDrift = 0;
+                driftDistanceEl.innerHTML = `0<span style="font-size: 14px; opacity: 0.5;">m</span>`;
+                driftDistanceEl.classList.remove('escalating');
+                driftDistanceEl.style.color = 'inherit';
+                
+                
+                statusText.innerText = "Anchored";
+                statusDot.className = "dot steady";
+                
+                closeNote();
+            }, 150);
+        });
+
+    </script>
+
+</body></html>

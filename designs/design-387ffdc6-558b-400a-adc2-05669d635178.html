@@ -1,0 +1,629 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Self Check-in</title>
+    
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&display=swap');
+
+        :root {
+            --bg-canvas: #F5F2F9; 
+            --ink-main: #4A4458;   
+            --ink-light: #8E859E;  
+            --ink-sage: #B4ACC4;   
+            --accent-green: #97A2FF; 
+            
+            --card-rose: #F2E3E8;  
+            --card-flax: #EDE7F5;  
+            --card-glass: #E9E6F0; 
+
+            --font-serif: 'Newsreader', serif;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --radius-soft: 20px;
+            --radius-pill: 40px;
+            --ease-spring: cubic-bezier(0.4, 0.0, 0.2, 1);
+            --ease-elastic: cubic-bezier(0.5, 2, 0.5, 0.8);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-canvas);
+            color: var(--ink-main);
+            font-family: var(--font-sans);
+            overscroll-behavior-y: none; 
+        }
+
+        #app-frame {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 430px; 
+            margin: 0 auto;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.03); 
+        }
+
+        #canvas-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #ui-layer {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; 
+        }
+
+        header {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 12px;
+            pointer-events: auto;
+        }
+
+        .dynamic-island {
+            background: rgba(45, 40, 55, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--radius-pill);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: -0.2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.4s var(--ease-spring);
+        }
+
+        .island-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .island-text {
+            opacity: 0.9;
+        }
+
+        #pull-zone {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            pointer-events: auto; 
+            cursor: grab;
+        }
+
+        #pull-zone:active {
+            cursor: grabbing;
+        }
+
+        #tension-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .string-path {
+            fill: none;
+            stroke: var(--ink-main);
+            stroke-width: 1px;
+            stroke-linecap: round;
+        }
+
+        .string-anchor {
+            fill: var(--ink-main);
+        }
+
+        #reveal-note {
+            position: absolute;
+            top: 120px; 
+            width: 240px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 0.5px solid rgba(142, 133, 158, 0.15);
+            border-radius: 4px; 
+            padding: 24px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+            transition: opacity 0.1s linear, transform 0.1s linear;
+            pointer-events: none;
+            box-shadow: 0 10px 30px rgba(74, 68, 88, 0.04);
+        }
+
+        #reveal-note::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            border-radius: inherit;
+        }
+
+        .note-text {
+            font-family: var(--font-serif);
+            font-size: 18px;
+            font-style: italic;
+            color: var(--ink-main);
+            line-height: 1.4;
+            letter-spacing: -0.3px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .note-meta {
+            font-family: var(--font-sans);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--ink-light);
+            margin-top: 16px;
+            position: relative;
+            z-index: 2;
+        }
+
+        #ambient-widgets {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+            background: linear-gradient(to top, var(--bg-canvas) 60%, transparent);
+        }
+
+        .widget-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 0.5px solid rgba(142, 133, 158, 0.1);
+            border-radius: var(--radius-soft);
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+        }
+
+        .card.rose { background: linear-gradient(135deg, rgba(242, 227, 232, 0.7), rgba(255,255,255,0.3)); }
+        .card.flax { background: linear-gradient(135deg, rgba(237, 231, 245, 0.7), rgba(255,255,255,0.3)); border-radius: 40px; } 
+        .card.glass { background: linear-gradient(135deg, rgba(233, 230, 240, 0.7), rgba(255,255,255,0.3)); }
+
+        .card-label {
+            font-family: var(--font-sans);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-family: var(--font-serif);
+            font-size: 20px;
+            color: var(--ink-main);
+            line-height: 1.1;
+        }
+
+        .card-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border: 1px solid var(--ink-light);
+            border-radius: 50%;
+            opacity: 0.5;
+        }
+
+        .dec-line {
+            position: absolute;
+            background: var(--ink-sage);
+            opacity: 0.3;
+        }
+        .dec-line.h { height: 0.5px; width: 100%; left: 0; }
+        .dec-line.v { width: 0.5px; height: 100%; top: 0; }
+
+        .floating-status {
+            position: absolute;
+            top: 40%;
+            left: 24px;
+            font-family: var(--font-sans);
+            font-size: 10px;
+            color: var(--ink-light);
+            transform: rotate(-90deg);
+            transform-origin: left top;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        body.is-pulled .dynamic-island {
+            transform: scale(0.95) translateY(5px);
+            background: rgba(60, 55, 75, 0.9);
+        }
+        body.is-pulled .island-text {
+            opacity: 0.5;
+        }
+        
+        .note-revealed {
+            transition: all 0.8s var(--ease-elastic) !important;
+            opacity: 1 !important;
+            transform: translateY(0) scale(1) !important;
+        }
+    </style>
+</head>
+<body vid="6">
+
+<div id="app-frame" vid="7">
+    <canvas id="canvas-bg" vid="8"></canvas>
+
+    <div id="ui-layer" vid="9">
+        <header vid="10">
+            <div class="dynamic-island" id="dynamic-island" vid="11">
+                <div class="island-dot" id="island-dot" vid="12"></div>
+                <div class="island-text" id="island-text" vid="13">Drifting</div>
+            </div>
+        </header>
+
+        <div class="floating-status" vid="14">Tension : Soft</div>
+
+        <div id="pull-zone" vid="15">
+            <svg id="tension-line" viewBox="0 0 100 100" preserveAspectRatio="none" vid="16">
+                <path d="M 10 0 L 10 100" class="string-path" style="stroke: var(--ink-sage); opacity: 0.3; stroke-dasharray: 2 4;" vid="17"></path>
+                <path d="M 90 0 L 90 100" class="string-path" style="stroke: var(--ink-sage); opacity: 0.3; stroke-dasharray: 1 6;" vid="18"></path>
+                <path id="elastic-string" class="string-path" d="M 50 0 Q 50 50 50 100" vid="19"></path>
+                <circle id="string-knot" class="string-anchor" cx="50" cy="100" r="1.5" vid="20"></circle>
+            </svg>
+
+            <div id="reveal-note" vid="21">
+                <div class="note-text" vid="22">"You are here. Everything else can wait."</div>
+                <div class="note-meta" vid="23">Intention Anchored — 14:02</div>
+            </div>
+        </div>
+
+        <div id="ambient-widgets" vid="24">
+            <div class="dec-line h" style="top: 0;" vid="25"></div>
+            
+            <div class="widget-row" vid="26">
+                <div class="card rose" vid="27">
+                    <div class="card-icon" vid="28"></div>
+                    <div class="card-label" vid="29">Current Route</div>
+                    <div class="card-value" vid="30">Passive</div>
+                </div>
+                <div class="card flax" vid="31">
+                    <div class="card-label" vid="32">Last Anchor</div>
+                    <div class="card-value" style="font-family: var(--font-sans); font-size: 16px; font-weight: 300;" vid="33">3 hrs ago</div>
+                </div>
+            </div>
+            
+            <div class="widget-row" vid="34">
+                <div class="card glass" style="flex-direction: row; align-items: center; padding: 16px 20px;" vid="35">
+                    <div style="flex-grow: 1;" vid="36">
+                        <div class="card-label" style="margin-bottom: 2px;" vid="37">Notice</div>
+                        <div class="card-value" style="font-size: 14px; font-family: var(--font-sans);" vid="38">Screen time is rising softly.</div>
+                    </div>
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--bg-canvas); border: 0.5px solid rgba(0,0,0,0.05); display: flex; justify-content: center; align-items: center;" vid="39">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" vid="40"><path d="M4 0v8M0 4h8" stroke="var(--ink-light)" stroke-width="0.5" vid="41"></path></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="vertex-shader" type="x-shader/x-vertex" vid="42">
+    attribute vec2 position;
+    varying vec2 vUv;
+    void main() {
+        vUv = position * 0.5 + 0.5;
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment" vid="43">
+    precision highp float;
+    varying vec2 vUv;
+    uniform vec2 u_resolution;
+    uniform float u_time;
+
+    vec3 colCanvas = vec3(245.0/255.0, 242.0/255.0, 249.0/255.0);
+    vec3 colSlate = vec3(142.0/255.0, 133.0/255.0, 158.0/255.0);
+    vec3 colSage = vec3(180.0/255.0, 172.0/255.0, 196.0/255.0);
+    vec3 colBrightAccent = vec3(151.0/255.0, 162.0/255.0, 255.0/255.0);
+
+    float hash(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+    }
+
+    float sdFuzzyStar(vec2 p, float n, float r, float rotation) {
+        float s = sin(rotation);
+        float c = cos(rotation);
+        p = vec2(c*p.x - s*p.y, s*p.x + c*p.y);
+        float angle = atan(p.y, p.x);
+        float radius = length(p);
+        float shape = cos(angle * n) * 0.15 + r;
+        return radius - shape;
+    }
+
+    void main() {
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        vec2 p = uv * 2.0 - 1.0;
+        p.x *= u_resolution.x / u_resolution.y;
+
+        vec3 color = colCanvas;
+
+        vec2 pos1 = p - vec2(0.3 + sin(u_time*0.1)*0.1, 0.6 + cos(u_time*0.15)*0.1);
+        float d1 = sdFuzzyStar(pos1, 5.0, 0.25, u_time * 0.05);
+        float mask1 = smoothstep(0.4, -0.1, d1); 
+        float center1 = smoothstep(0.04, 0.02, length(pos1));
+        vec3 shape1Color = mix(colCanvas, colSage, mask1 * 0.5); 
+        shape1Color = mix(shape1Color, colBrightAccent, center1);
+        
+        vec2 pos2 = p - vec2(-0.2 + cos(u_time*0.12)*0.1, -0.1 + sin(u_time*0.08)*0.1);
+        float d2 = sdFuzzyStar(pos2, 6.0, 0.4, -u_time * 0.03);
+        float mask2 = smoothstep(0.6, -0.1, d2);
+        float center2 = smoothstep(0.05, 0.03, length(pos2));
+        vec3 shape2Color = mix(colCanvas, colSlate, mask2 * 0.6);
+        shape2Color = mix(shape2Color, colBrightAccent, center2);
+
+        color = mix(color, shape1Color, mask1);
+        color = mix(color, shape2Color, mask2);
+
+        float grain = hash(uv * u_resolution.xy);
+        color = mix(color, color - 0.05, grain * 0.15);
+        
+        float weaveX = sin(uv.x * u_resolution.x * 2.0) * 0.5 + 0.5;
+        float weaveY = sin(uv.y * u_resolution.y * 2.0) * 0.5 + 0.5;
+        color *= 1.0 - (weaveX * 0.008);
+        color *= 1.0 - (weaveY * 0.008);
+
+        gl_FragColor = vec4(color, 1.0);
+    }
+</script>
+
+<script vid="44">
+    const canvas = document.getElementById('canvas-bg');
+    const gl = canvas.getContext('webgl');
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const vsSource = document.getElementById('vertex-shader').text;
+    const fsSource = document.getElementById('fragment-shader').text;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        return shader;
+    }
+
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    const vertices = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const positionLocation = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+    const timeLocation = gl.getUniformLocation(program, 'u_time');
+
+    function renderBackground(time) {
+        gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+        gl.uniform1f(timeLocation, time * 0.001);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(renderBackground);
+    }
+    requestAnimationFrame(renderBackground);
+
+    const pullZone = document.getElementById('pull-zone');
+    const elasticString = document.getElementById('elastic-string');
+    const stringKnot = document.getElementById('string-knot');
+    const revealNote = document.getElementById('reveal-note');
+    const islandText = document.getElementById('island-text');
+    const islandDot = document.getElementById('island-dot');
+
+    let isDragging = false;
+    let startY = 0;
+    let currentY = 0;
+    let pullDistance = 0;
+    const MAX_PULL = 200; 
+    const REVEAL_THRESHOLD = 120; 
+
+    let springQ = { x: 50, y: 50 }; 
+    let springTarget = { x: 50, y: 50 };
+    let velocity = { x: 0, y: 0 };
+    let tension = 0.15; 
+    let dampening = 0.85; 
+    let animFrame = null;
+    let isNoteRevealed = false;
+
+    function getPullZoneRect() {
+        return pullZone.getBoundingClientRect();
+    }
+
+    function handleStart(e) {
+        if(isNoteRevealed) return; 
+        isDragging = true;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        startY = clientY;
+        document.body.classList.add('is-pulled');
+        cancelAnimationFrame(animFrame); 
+    }
+
+    function handleMove(e) {
+        if (!isDragging) return;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const deltaY = Math.max(0, clientY - startY); 
+        pullDistance = MAX_PULL * (1 - Math.exp(-deltaY / MAX_PULL));
+        const rect = getPullZoneRect();
+        const mouseXPercent = ((clientX - rect.left) / rect.width) * 100;
+        const targetX = 50 + (mouseXPercent - 50) * 0.4;
+        const targetY = 50 + (pullDistance / rect.height) * 100;
+        springTarget.x = targetX;
+        springTarget.y = targetY;
+        springQ.x = springTarget.x;
+        springQ.y = springTarget.y;
+        updateStringPath();
+
+        const progress = Math.min(pullDistance / REVEAL_THRESHOLD, 1);
+        if(pullDistance > 20) {
+            revealNote.style.opacity = (progress * 0.5).toString();
+            revealNote.style.transform = `translateY(${-20 + (progress * 20)}px) scale(${0.95 + (progress * 0.05)})`;
+        }
+
+        if (pullDistance > REVEAL_THRESHOLD) {
+            islandText.innerText = "Release to Anchor";
+            islandDot.style.background = "#fff"; 
+        } else if (pullDistance > 10) {
+            islandText.innerText = "Checking In...";
+            islandDot.style.background = "var(--ink-light)";
+        }
+    }
+
+    function handleEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.classList.remove('is-pulled');
+
+        if (pullDistance >= REVEAL_THRESHOLD) {
+            isNoteRevealed = true;
+            revealNote.classList.add('note-revealed');
+            islandText.innerText = "Restored";
+            islandDot.style.background = "var(--accent-green)";
+            springTarget.y = 100; 
+            setTimeout(() => {
+                isNoteRevealed = false;
+                revealNote.classList.remove('note-revealed');
+                revealNote.style.opacity = '0';
+                islandText.innerText = "Drifting";
+                islandDot.style.background = "var(--accent-green)";
+                springTarget.y = 50; 
+                startSpringLoop();
+            }, 4000);
+        } else {
+            springTarget.x = 50;
+            springTarget.y = 50;
+            revealNote.style.opacity = '0';
+            revealNote.style.transform = `translateY(-20px) scale(0.95)`;
+            islandText.innerText = "Drifting";
+            islandDot.style.background = "var(--accent-green)";
+        }
+        pullDistance = 0;
+        startSpringLoop();
+    }
+
+    function updateStringPath() {
+        const endY = isNoteRevealed ? 100 : 80 + (springQ.y - 50) * 0.2;
+        elasticString.setAttribute('d', `M 50 0 Q ${springQ.x} ${springQ.y} 50 ${endY}`);
+        stringKnot.setAttribute('cy', endY);
+    }
+
+    function startSpringLoop() {
+        if (!animFrame) {
+            loop();
+        }
+    }
+
+    function loop() {
+        const dx = springTarget.x - springQ.x;
+        const dy = springTarget.y - springQ.y;
+        velocity.x += dx * tension;
+        velocity.y += dy * tension;
+        velocity.x *= dampening;
+        velocity.y *= dampening;
+        springQ.x += velocity.x;
+        springQ.y += velocity.y;
+        updateStringPath();
+        if (Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 && Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+            springQ.x = springTarget.x;
+            springQ.y = springTarget.y;
+            updateStringPath();
+            animFrame = null;
+        } else {
+            animFrame = requestAnimationFrame(loop);
+        }
+    }
+
+    pullZone.addEventListener('mousedown', handleStart);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    pullZone.addEventListener('touchstart', handleStart, {passive: false});
+    window.addEventListener('touchmove', handleMove, {passive: false});
+    window.addEventListener('touchend', handleEnd);
+    updateStringPath();
+</script>
+</body></html>

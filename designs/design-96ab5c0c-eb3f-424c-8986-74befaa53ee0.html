@@ -1,0 +1,652 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Intentional Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" vid="5"></script>
+    <style vid="6">
+        :root {
+            --charcoal: #1a1a1c;
+            --off-white: #f4f4f0;
+            --blue-accent: #e2edf8;
+            --yellow-accent: #f7f4e4;
+            --red-accent: #fce8e3;
+            --green-accent: #e6f2e6;
+            --spring-ease: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --smooth-ease: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--off-white);
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            color: var(--charcoal);
+            overscroll-behavior: none;
+        }
+
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .grain-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            mix-blend-mode: multiply;
+        }
+
+        
+        .ambient-word {
+            position: absolute;
+            z-index: 5;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            opacity: 0.85;
+        }
+        .w-1 { top: 12%; left: 10%; }
+        .w-2 { top: 12%; right: 12%; }
+        .w-3 { top: 48%; left: 10%; }
+        .w-4 { top: 48%; right: 12%; }
+        .w-5 { bottom: 12%; left: 10%; }
+        .w-6 { bottom: 12%; right: 12%; }
+
+        
+        #app-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none; 
+        }
+
+        
+        .island-container {
+            margin-top: 12px;
+            width: 120px;
+            height: 32px;
+            background: var(--charcoal);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            pointer-events: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s var(--smooth-ease);
+        }
+
+        .island-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--yellow-accent);
+            border-radius: 50%;
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        .island-waveform {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+            height: 12px;
+        }
+
+        .island-waveform div {
+            width: 2px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 1px;
+            animation: wave 1.5s infinite ease-in-out;
+        }
+        .island-waveform div:nth-child(2) { animation-delay: 0.2s; }
+        .island-waveform div:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes wave {
+            0%, 100% { height: 4px; }
+            50% { height: 10px; }
+        }
+
+        
+        .interaction-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .thread-container {
+            position: relative;
+            width: 2px;
+            height: 0px; 
+            margin-top: 44px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 25;
+        }
+
+        .thread-line {
+            width: 1px;
+            height: 100%;
+            background-color: var(--charcoal);
+            opacity: 0.3;
+            transform-origin: top;
+        }
+
+        
+        .pull-payload {
+            position: absolute;
+            top: 0; 
+            width: 260px;
+            background: rgba(244, 244, 240, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--charcoal);
+            border-radius: 24px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transform: translateY(-120%) scale(0.95);
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5);
+        }
+
+        .pull-payload.visible {
+            opacity: 1;
+        }
+
+        .payload-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(26, 26, 28, 0.5);
+            border-bottom: 1px solid rgba(26, 26, 28, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .payload-body {
+            font-size: 18px;
+            line-height: 1.3;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .payload-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .pill-btn {
+            flex: 1;
+            padding: 10px 0;
+            border-radius: 20px;
+            border: 1px solid var(--charcoal);
+            background: transparent;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--charcoal);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pill-btn.primary {
+            background: var(--blue-accent);
+        }
+
+        .pill-btn:active {
+            transform: scale(0.96);
+        }
+
+        
+        .widget-floating {
+            position: absolute;
+            right: 16px;
+            bottom: 32px;
+            width: 140px;
+            background: var(--yellow-accent);
+            border: 1px solid var(--charcoal);
+            border-radius: 16px;
+            padding: 16px;
+            pointer-events: auto;
+            transform: rotate(2deg);
+            box-shadow: 2px 4px 12px rgba(0,0,0,0.04);
+        }
+
+        .widget-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.5;
+            margin-bottom: 8px;
+        }
+
+        .widget-value {
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--red-accent);
+            border: 1px solid var(--charcoal);
+        }
+
+        
+        .pull-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            color: rgba(26, 26, 28, 0.4);
+            pointer-events: none;
+            transition: opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .pull-hint svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.5;
+            animation: float-down 2s infinite ease-in-out;
+        }
+
+        @keyframes float-down {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
+
+    </style>
+</head>
+<body vid="7">
+
+    
+    <div id="canvas-container" vid="8"></div>
+    
+    
+    <div class="grain-overlay" vid="9"></div>
+
+    
+    <div class="ambient-word w-1" vid="10">in</div>
+    <div class="ambient-word w-2" vid="11">the</div>
+    <div class="ambient-word w-3" vid="12">drift</div>
+    <div class="ambient-word w-4" vid="13">notice</div>
+    <div class="ambient-word w-5" vid="14">and</div>
+    <div class="ambient-word w-6" vid="15">return</div>
+
+    
+    <div id="app-layer" vid="16">
+        <div class="island-container" id="dynamic-island" vid="17">
+            <div class="island-waveform" vid="18">
+                <div vid="19"></div><div vid="20"></div><div vid="21"></div>
+            </div>
+            <div class="island-dot" id="island-status" vid="22"></div>
+        </div>
+
+        <div class="interaction-zone" id="touch-zone" vid="23">
+            <div class="pull-hint" id="hint" vid="24">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" vid="25"><path d="M12 5v14M19 12l-7 7-7-7" vid="26"></path></svg>
+                pull to return
+            </div>
+
+            <div class="thread-container" id="thread-wrap" vid="27">
+                <div class="thread-line" id="thread" vid="28"></div>
+                
+                <div class="pull-payload" id="payload" vid="29">
+                    <div class="payload-header" vid="30">
+                        <span vid="31">Check-in</span>
+                        <span id="time-display" vid="32">10:42</span>
+                    </div>
+                    <div class="payload-body" vid="33">
+                        You've been scrolling for a while. Where is your attention right now?
+                    </div>
+                    <div class="payload-actions" vid="34">
+                        <button class="pill-btn" vid="35">Still drifting</button>
+                        <button class="pill-btn primary" id="btn-return" vid="36">I'm here</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="widget-floating" vid="37">
+            <div class="widget-label" vid="38">Current Route</div>
+            <div class="widget-value" vid="39">
+                <div class="status-dot" vid="40"></div>
+                Unanchored
+            </div>
+        </div>
+    </div>
+
+    
+    <script id="vertexShader" type="x-shader/x-vertex" vid="41">
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment" vid="42">
+        uniform float uTime;
+        varying vec2 vUv;
+
+        
+        vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        float snoise(vec2 v){
+            const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                     -0.577350269189626, 0.024390243902439);
+            vec2 i  = floor(v + dot(v, C.yy) );
+            vec2 x0 = v -   i + dot(i, C.xx);
+            vec2 i1;
+            i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec4 x12 = x0.xyxy + C.xxzz;
+            x12.xy -= i1;
+            i = mod(i, 289.0);
+            vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+            + i.x + vec3(0.0, i1.x, 1.0 ));
+            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+              dot(x12.zw,x12.zw)), 0.0);
+            m = m*m ;
+            m = m*m ;
+            vec3 x = 2.0 * fract(p * C.www) - 1.0;
+            vec3 h = abs(x) - 0.5;
+            vec3 ox = floor(x + 0.5);
+            vec3 a0 = x - ox;
+            m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+            vec3 g;
+            g.x  = a0.x  * x0.x  + h.x  * x0.y;
+            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+            return 130.0 * dot(m, g);
+        }
+
+        
+        float fbm(vec2 st) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            float frequency = 0.0;
+            for (int i = 0; i < 5; i++) {
+                value += amplitude * snoise(st);
+                st *= 2.0;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        void main() {
+            vec2 st = vUv * 3.0;
+            
+            
+            vec2 q = vec2(0.);
+            q.x = fbm(st + 0.00 * uTime);
+            q.y = fbm(st + vec2(1.0));
+
+            vec2 r = vec2(0.);
+            r.x = fbm(st + 1.0*q + vec2(1.7,9.2)+ 0.15*uTime);
+            r.y = fbm(st + 1.0*q + vec2(8.3,2.8)+ 0.126*uTime);
+
+            float f = fbm(st+r);
+
+            
+            vec3 colorSkyBlue = vec3(0.23, 0.56, 0.95); 
+            vec3 colorPaleYellow = vec3(0.91, 0.89, 0.79); 
+            vec3 colorWhite = vec3(0.96, 0.96, 0.94);
+
+            
+            vec3 color = mix(colorSkyBlue, colorPaleYellow, clamp((f*f)*4.0, 0.0, 1.0));
+            color = mix(color, colorWhite, clamp(length(q), 0.0, 1.0));
+            color = mix(color, colorSkyBlue, clamp(length(r.x), 0.0, 1.0));
+
+            
+            color = smoothstep(0.0, 1.0, color);
+
+            gl_FragColor = vec4(color, 1.0);
+        }
+    </script>
+
+    <script vid="43">
+        
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+        camera.position.z = 1;
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const material = new THREE.ShaderMaterial({
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent,
+            uniforms: {
+                uTime: { value: 0.0 }
+            }
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        function animate(time) {
+            material.uniforms.uTime.value = time * 0.0002;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        
+        const touchZone = document.getElementById('touch-zone');
+        const threadWrap = document.getElementById('thread-wrap');
+        const payload = document.getElementById('payload');
+        const hint = document.getElementById('hint');
+        const timeDisplay = document.getElementById('time-display');
+        const islandStatus = document.getElementById('island-status');
+        const island = document.getElementById('dynamic-island');
+        const widgetStatus = document.querySelector('.widget-value');
+        const widgetDot = document.querySelector('.status-dot');
+
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let isRevealed = false;
+        
+        
+        let springVelocity = 0;
+        let springPosition = 0;
+        const springStiffness = 0.1;
+        const springDamping = 0.7;
+        let animationFrame;
+
+        
+        const now = new Date();
+        timeDisplay.textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        function updateUI(height) {
+            
+            const maxStretch = 180;
+            const resistance = height > maxStretch ? maxStretch + (height - maxStretch) * 0.2 : height;
+            
+            threadWrap.style.height = `${Math.max(0, resistance)}px`;
+            
+            
+            payload.style.top = `${Math.max(0, resistance)}px`;
+            
+            
+            const progress = Math.min(resistance / 150, 1);
+            
+            if (!isRevealed) {
+                payload.style.transform = `translateY(-50%) scale(${0.8 + (progress * 0.2)})`;
+                if (progress > 0.1) {
+                    payload.classList.add('visible');
+                    hint.style.opacity = '0';
+                    island.style.transform = 'scale(0.95)';
+                } else {
+                    payload.classList.remove('visible');
+                    hint.style.opacity = '1';
+                    island.style.transform = 'scale(1)';
+                }
+            }
+        }
+
+        function triggerReveal() {
+            isRevealed = true;
+            cancelAnimationFrame(animationFrame);
+            
+            
+            threadWrap.style.transition = 'height 0.5s var(--spring-ease)';
+            payload.style.transition = 'top 0.5s var(--spring-ease), transform 0.5s var(--spring-ease), opacity 0.2s';
+            
+            threadWrap.style.height = '150px';
+            payload.style.top = '150px';
+            payload.style.transform = 'translateY(0) scale(1)';
+            island.style.transform = 'scale(0.95)';
+            
+            
+            setTimeout(() => {
+                threadWrap.style.transition = '';
+                payload.style.transition = 'opacity 0.2s';
+            }, 500);
+        }
+
+        function springLoop() {
+            
+            const force = (0 - springPosition) * springStiffness;
+            springVelocity = (springVelocity + force) * springDamping;
+            springPosition += springVelocity;
+            
+            updateUI(springPosition);
+
+            if (Math.abs(springVelocity) > 0.1 || Math.abs(springPosition) > 0.1) {
+                animationFrame = requestAnimationFrame(springLoop);
+            } else {
+                springPosition = 0;
+                updateUI(0);
+                payload.classList.remove('visible');
+                hint.style.opacity = '1';
+            }
+        }
+
+        touchZone.addEventListener('touchstart', (e) => {
+            if (isRevealed) return;
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            cancelAnimationFrame(animationFrame);
+            threadWrap.style.transition = '';
+            payload.style.transition = 'opacity 0.2s';
+        });
+
+        touchZone.addEventListener('touchmove', (e) => {
+            if (!isDragging || isRevealed) return;
+            currentY = e.touches[0].clientY;
+            const deltaY = currentY - startY;
+            
+            if (deltaY > 0) {
+                e.preventDefault(); 
+                springPosition = deltaY;
+                updateUI(deltaY);
+            }
+        }, { passive: false });
+
+        touchZone.addEventListener('touchend', () => {
+            if (!isDragging || isRevealed) return;
+            isDragging = false;
+            
+            
+            if (springPosition > 140) {
+                triggerReveal();
+            } else {
+                
+                springLoop();
+            }
+        });
+
+        
+        document.getElementById('btn-return').addEventListener('click', () => {
+            
+            islandStatus.style.background = 'var(--green-accent)';
+            islandStatus.style.animation = 'none';
+            islandStatus.style.opacity = '1';
+            
+            widgetDot.style.background = 'var(--green-accent)';
+            widgetStatus.innerHTML = '<div class="status-dot" style="background: var(--green-accent)"></div>Anchored';
+            
+            
+            threadWrap.style.transition = 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            payload.style.transition = 'top 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s';
+            
+            threadWrap.style.height = '0px';
+            payload.style.top = '0px';
+            payload.style.transform = 'translateY(-120%) scale(0.9)';
+            payload.style.opacity = '0';
+            island.style.transform = 'scale(1)';
+            
+            setTimeout(() => {
+                isRevealed = false;
+                threadWrap.style.transition = '';
+                payload.style.transition = 'opacity 0.2s';
+                hint.innerHTML = 'restored.';
+                hint.style.opacity = '1';
+            }, 400);
+            
+            
+            setTimeout(() => {
+                 hint.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>pull to return';
+            }, 3000);
+        });
+
+    </script>
+
+</body></html>

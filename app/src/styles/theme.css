@@ -1,0 +1,34 @@
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+
+  /* PULL palette tokens, ported from the original prototypes */
+  --color-canvas: #f2efe8;
+  --color-ink-main: #3a3c38;
+  --color-ink-light: #7a8078;
+  --color-ink-sage: #a0aa98;
+  --color-accent-green: #6ca350;
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
+/* Lock the body during a pull-down drag — used by Pull.tsx */
+body.pull-active {
+  overscroll-behavior: contain;
+  cursor: grabbing;
+}
+
+/* Final reveal animation for the "you are here" note in Pull.tsx.
+   Inline transitions during the drag are short (0.1s linear); when the
+   threshold is crossed we swap to this elastic spring transition. */
+.note-revealed {
+  transition: all 0.8s cubic-bezier(0.5, 2, 0.5, 0.8) !important;
+  opacity: 1 !important;
+  transform: translateY(0) scale(1) translateX(-50%) !important;
+}

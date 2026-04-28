@@ -1,0 +1,863 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">PULL - Intentional Interface</title>
+    
+    
+
+    <style vid="5">
+        :root {
+            --c-blue-light: #6cb2ff;
+            --c-blue-deep: #3b91ff;
+            --c-cream: #e5e8d9;
+            --c-charcoal: #111111;
+            --c-charcoal-muted: rgba(17, 17, 17, 0.5);
+            --c-surface: rgba(252, 252, 251, 0.85);
+            --c-surface-solid: #fcfcfb;
+            --c-border: rgba(17, 17, 17, 0.12);
+            
+            
+            --c-acc-red: #ffb3b3;
+            --c-acc-green: #b8e0c4;
+            --c-acc-yellow: #fceb9c;
+
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            
+            --spring-easing: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --fast-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--c-cream);
+            font-family: var(--font-sans);
+            color: var(--c-charcoal);
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; 
+        }
+
+        
+        .ambient-text {
+            position: absolute;
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: -0.02em;
+            color: var(--c-charcoal);
+            opacity: 0.9;
+            pointer-events: none;
+            transition: opacity 1s ease, transform 1s ease;
+        }
+        .at-1 { top: 12%; left: 8%; }
+        .at-2 { top: 12%; right: 8%; }
+        .at-3 { top: 48%; left: 8%; }
+        .at-4 { top: 48%; right: 8%; }
+        .at-5 { bottom: 12%; left: 8%; }
+        .at-6 { bottom: 12%; right: 8%; }
+
+        
+        .island-container {
+            width: 100%;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: env(safe-area-inset-top, 48px);
+        }
+
+        .dynamic-island {
+            background: var(--c-charcoal);
+            color: var(--c-cream);
+            border-radius: 30px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            pointer-events: auto;
+            transform-origin: top center;
+            transition: transform 0.4s var(--spring-easing), width 0.4s var(--spring-easing);
+            will-change: transform, width;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .di-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--c-acc-green);
+            box-shadow: 0 0 8px var(--c-acc-green);
+            transition: background-color 0.3s ease;
+        }
+
+        .di-text {
+            opacity: 0.9;
+        }
+
+        .di-expanded-content {
+            display: none;
+            opacity: 0;
+            padding-left: 12px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+            font-weight: 400;
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        
+        #gesture-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: auto;
+        }
+
+        
+        #tether-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 6;
+        }
+        
+        .tether-path {
+            fill: none;
+            stroke: var(--c-charcoal);
+            stroke-width: 1.5px;
+            stroke-linecap: round;
+        }
+
+        
+        .anchor-point {
+            position: absolute;
+            left: 50%;
+            top: 35%; 
+            transform: translate(-50%, -50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--c-surface-solid);
+            border: 1px solid var(--c-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(59, 145, 255, 0.15);
+            z-index: 15;
+            pointer-events: auto;
+            cursor: grab;
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            will-change: transform;
+        }
+
+        .anchor-point:active {
+            cursor: grabbing;
+        }
+
+        .anchor-inner {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--c-charcoal);
+            transition: transform 0.2s ease;
+        }
+
+        .anchor-point.is-pulling .anchor-inner {
+            transform: scale(0.6);
+        }
+        
+        .anchor-label {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--c-charcoal-muted);
+            white-space: nowrap;
+            pointer-events: none;
+            font-weight: 600;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        
+        .note-container {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translate(-50%, -20px) scale(0.95);
+            width: 85%;
+            max-width: 340px;
+            background: var(--c-surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--c-border);
+            border-radius: 24px;
+            padding: 32px 24px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 4;
+            box-shadow: 0 20px 40px rgba(59, 145, 255, 0.1);
+            transition: opacity 0.4s ease, transform 0.5s var(--spring-easing);
+            will-change: transform, opacity;
+        }
+
+        .note-container.is-revealed {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+            pointer-events: auto;
+        }
+
+        .note-header {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--c-charcoal-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .note-header::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--c-acc-red);
+        }
+
+        .note-body {
+            font-size: 24px;
+            font-weight: 500;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
+            color: var(--c-charcoal);
+        }
+
+        .note-meta {
+            margin-top: 24px;
+            font-size: 12px;
+            color: var(--c-charcoal-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--c-border);
+            padding-top: 16px;
+        }
+
+        .btn-return {
+            background: none;
+            border: none;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--c-charcoal);
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 100px;
+            background: rgba(17,17,17,0.05);
+            transition: background 0.2s ease;
+        }
+
+        
+        .bottom-widgets {
+            position: absolute;
+            bottom: env(safe-area-inset-bottom, 32px);
+            left: 0;
+            width: 100%;
+            padding: 0 24px;
+            display: flex;
+            gap: 12px;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .widget-card {
+            flex: 1;
+            background: var(--c-surface);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--c-border);
+            border-radius: 20px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.03);
+            transition: transform 0.2s ease;
+        }
+
+        .widget-card:active {
+            transform: scale(0.98);
+        }
+
+        .w-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .w-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--c-cream);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid var(--c-border);
+        }
+
+        .w-icon svg {
+            width: 12px;
+            height: 12px;
+            stroke: var(--c-charcoal);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .w-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .w-status.yellow { background: var(--c-acc-yellow); }
+        .w-status.blue { background: var(--c-blue-light); }
+
+        .w-content {
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        .w-sub {
+            font-size: 10px;
+            color: var(--c-charcoal-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 40%, rgba(59, 145, 255, 0.1) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+    </style>
+</head>
+<body vid="6">
+
+    
+    <div id="canvas-container" vid="7"></div>
+    <div class="vignette" vid="8"></div>
+
+    
+    <div id="gesture-layer" vid="9"></div>
+
+    
+    <div id="ui-layer" vid="10">
+        
+        
+        <div class="ambient-text at-1" vid="11">In</div>
+        <div class="ambient-text at-2" vid="12">the</div>
+        <div class="ambient-text at-3" vid="13">grand</div>
+        <div class="ambient-text at-4" vid="14">scheme</div>
+        <div class="ambient-text at-5" vid="15">of</div>
+        <div class="ambient-text at-6" vid="16">things</div>
+
+        
+        <div class="island-container" vid="17">
+            <div class="dynamic-island" id="dynamic-island" vid="18">
+                <div class="di-status-dot" id="di-dot" vid="19"></div>
+                <div class="di-text" id="di-text" vid="20">Steady</div>
+                <div class="di-expanded-content" id="di-detail" vid="21">Drift detected. Pull to anchor.</div>
+            </div>
+        </div>
+
+        
+        <div class="note-container" id="note" vid="22">
+            <div class="note-header" vid="23">Current State</div>
+            <div class="note-body" vid="24">
+                What tension are you holding that doesn't belong to you?
+            </div>
+            <div class="note-meta" vid="25">
+                <span vid="26">Route: Disconnected</span>
+                <button class="btn-return" id="btn-release" vid="27">Release</button>
+            </div>
+        </div>
+
+        
+        <div class="bottom-widgets" id="widgets" vid="28">
+            <div class="widget-card" vid="29">
+                <div class="w-top" vid="30">
+                    <div class="w-icon" vid="31">
+                        <svg viewBox="0 0 24 24" vid="32"><path d="M12 4v16m-8-8h16" stroke-linecap="round" vid="33"></path></svg>
+                    </div>
+                    <div class="w-status yellow" vid="34"></div>
+                </div>
+                <div class="w-content" vid="35">
+                    Last anchor was 4 hours ago.
+                </div>
+                <div class="w-sub" vid="36">System Note</div>
+            </div>
+            
+            <div class="widget-card" vid="37">
+                <div class="w-top" vid="38">
+                    <div class="w-icon" vid="39">
+                        <svg viewBox="0 0 24 24" vid="40"><circle cx="12" cy="12" r="8" stroke-linecap="round" vid="41"></circle></svg>
+                    </div>
+                    <div class="w-status blue" vid="42"></div>
+                </div>
+                <div class="w-content" vid="43">
+                    Breath sync is available.
+                </div>
+                <div class="w-sub" vid="44">Live Activity</div>
+            </div>
+        </div>
+    </div>
+
+    
+    <svg id="tether-svg" vid="45">
+        <path class="tether-path" id="tether-path" d="M 0 0" vid="46"></path>
+    </svg>
+
+    
+    <div class="anchor-point" id="anchor" vid="47">
+        <div class="anchor-label" id="anchor-label" vid="48">Pull to anchor</div>
+        <div class="anchor-inner" vid="49"></div>
+    </div>
+
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" vid="50"></script>
+    <script vid="51">
+        
+        const initWebGL = () => {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            
+            
+            const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+            container.appendChild(renderer.domElement);
+
+            const geometry = new THREE.PlaneGeometry(2, 2);
+
+            
+            const fragmentShader = `
+                uniform float u_time;
+                uniform vec2 u_resolution;
+                
+                // Simplex 2D noise
+                vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+                float snoise(vec2 v){
+                    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                            -0.577350269189626, 0.024390243902439);
+                    vec2 i  = floor(v + dot(v, C.yy) );
+                    vec2 x0 = v -   i + dot(i, C.xx);
+                    vec2 i1;
+                    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+                    vec4 x12 = x0.xyxy + C.xxzz;
+                    x12.xy -= i1;
+                    i = mod(i, 289.0);
+                    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+                    + i.x + vec3(0.0, i1.x, 1.0 ));
+                    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+                        dot(x12.zw,x12.zw)), 0.0);
+                    m = m*m ;
+                    m = m*m ;
+                    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+                    vec3 h = abs(x) - 0.5;
+                    vec3 ox = floor(x + 0.5);
+                    vec3 a0 = x - ox;
+                    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+                    vec3 g;
+                    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+                    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+                    return 130.0 * dot(m, g);
+                }
+
+                // Fractal Brownian Motion
+                float fbm(vec2 st) {
+                    float value = 0.0;
+                    float amplitude = 0.5;
+                    float frequency = 0.0;
+                    for (int i = 0; i < 5; i++) {
+                        value += amplitude * snoise(st);
+                        st *= 2.0;
+                        amplitude *= 0.5;
+                    }
+                    return value;
+                }
+
+                // Random for grain
+                float random(vec2 st) {
+                    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                }
+
+                void main() {
+                    vec2 st = gl_FragCoord.xy / u_resolution.xy;
+                    st.x *= u_resolution.x / u_resolution.y;
+
+                    // Slow drift
+                    vec2 q = vec2(0.);
+                    q.x = fbm( st + 0.00 * u_time);
+                    q.y = fbm( st + vec2(1.0));
+
+                    vec2 r = vec2(0.);
+                    r.x = fbm( st + 1.0*q + vec2(1.7,9.2)+ 0.015*u_time );
+                    r.y = fbm( st + 1.0*q + vec2(8.3,2.8)+ 0.0126*u_time);
+
+                    float f = fbm(st+r);
+
+                    // Colors mapped from reference image
+                    vec3 colorCream = vec3(229.0/255.0, 232.0/255.0, 217.0/255.0); // #e5e8d9
+                    vec3 colorBlueLight = vec3(108.0/255.0, 178.0/255.0, 255.0/255.0); // #6cb2ff
+                    vec3 colorBlueDeep = vec3(59.0/255.0, 145.0/255.0, 255.0/255.0); // #3b91ff
+
+                    // Mix based on noise
+                    vec3 color = mix(colorCream, colorBlueLight, clamp((f*f)*4.0,0.0,1.0));
+                    color = mix(color, colorBlueDeep, clamp(length(q),0.0,1.0));
+                    color = mix(color, colorCream, clamp(length(r.x),0.0,1.0));
+
+                    // Add film grain/paper texture
+                    float noise = random(st * u_time * 0.1) * 0.06;
+                    color -= noise;
+
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `;
+
+            const uniforms = {
+                u_time: { value: 0.0 },
+                u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+            };
+
+            const material = new THREE.ShaderMaterial({
+                fragmentShader,
+                uniforms,
+                depthWrite: false,
+                depthTest: false
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            let lastTime = 0;
+            const render = (time) => {
+                time *= 0.001; 
+                uniforms.u_time.value = time;
+                renderer.render(scene, camera);
+                requestAnimationFrame(render);
+            };
+            requestAnimationFrame(render);
+
+            window.addEventListener('resize', () => {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+            });
+        };
+
+        
+        const initInteraction = () => {
+            const anchor = document.getElementById('anchor');
+            const tetherPath = document.getElementById('tether-path');
+            const note = document.getElementById('note');
+            const island = document.getElementById('dynamic-island');
+            const islandDot = document.getElementById('di-dot');
+            const islandText = document.getElementById('di-text');
+            const islandDetail = document.getElementById('di-detail');
+            const anchorLabel = document.getElementById('anchor-label');
+            const btnRelease = document.getElementById('btn-release');
+            const ambientTexts = document.querySelectorAll('.ambient-text');
+            const widgets = document.getElementById('widgets');
+
+            
+            let ww = window.innerWidth;
+            let wh = window.innerHeight;
+            
+            
+            const restY = wh * 0.35;
+            const topOriginY = envSafeTop() + 60; 
+
+            
+            let isDragging = false;
+            let currentY = restY;
+            let targetY = restY;
+            let velocityY = 0;
+            let isRevealed = false;
+            
+            
+            const stiffness = 0.1;
+            const damping = 0.75;
+
+            
+            let startTouchY = 0;
+            let startElementY = 0;
+
+            function envSafeTop() {
+                return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || 48);
+            }
+
+            
+            anchor.style.top = `${restY}px`;
+            updateTether(restY);
+
+            
+            const startDrag = (e) => {
+                if (isRevealed) return; 
+                isDragging = true;
+                anchor.classList.add('is-pulling');
+                anchorLabel.style.opacity = '0';
+                
+                
+                ambientTexts.forEach(el => el.style.transform = 'translateY(-10px) scale(0.98)');
+                widgets.style.transform = 'translateY(20px)';
+                widgets.style.opacity = '0.5';
+
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startTouchY = clientY;
+                startElementY = currentY;
+                
+                
+                islandDot.style.backgroundColor = 'var(--c-acc-yellow)';
+                islandText.textContent = 'Tension';
+            };
+
+            const drag = (e) => {
+                if (!isDragging) return;
+                e.preventDefault(); 
+                
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const deltaY = clientY - startTouchY;
+                
+                
+                let rawY = startElementY + deltaY;
+                let pullDistance = rawY - restY;
+                
+                if (pullDistance > 0) {
+                    
+                    targetY = restY + (Math.log(pullDistance + 1) * 40);
+                } else {
+                    
+                    targetY = restY + (pullDistance * 0.2);
+                }
+
+                
+                if (targetY > wh * 0.55 && !isRevealed) {
+                    triggerReveal();
+                }
+            };
+
+            const endDrag = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                anchor.classList.remove('is-pulling');
+                
+                if (!isRevealed) {
+                    
+                    targetY = restY;
+                    anchorLabel.style.opacity = '1';
+                    
+                    
+                    ambientTexts.forEach(el => el.style.transform = 'none');
+                    widgets.style.transform = 'none';
+                    widgets.style.opacity = '1';
+
+                    
+                    islandDot.style.backgroundColor = 'var(--c-acc-green)';
+                    islandText.textContent = 'Steady';
+                }
+            };
+
+            
+            const gestureLayer = document.getElementById('gesture-layer');
+            anchor.addEventListener('mousedown', startDrag);
+            anchor.addEventListener('touchstart', startDrag, {passive: false});
+            
+            window.addEventListener('mousemove', drag);
+            window.addEventListener('touchmove', drag, {passive: false});
+            
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+
+            
+            const triggerReveal = () => {
+                isRevealed = true;
+                isDragging = false;
+                
+                
+                targetY = wh + 100; 
+                
+                
+                note.classList.add('is-revealed');
+                
+                
+                island.style.width = '240px';
+                island.style.borderRadius = '20px';
+                islandText.textContent = 'Anchored';
+                islandDot.style.backgroundColor = 'var(--c-blue-light)';
+                islandDetail.style.display = 'block';
+                setTimeout(() => islandDetail.style.opacity = '1', 200);
+
+                
+                ambientTexts.forEach(el => el.style.opacity = '0');
+            };
+
+            
+            btnRelease.addEventListener('click', () => {
+                isRevealed = false;
+                
+                
+                note.classList.remove('is-revealed');
+                
+                
+                currentY = wh + 100; 
+                targetY = restY;
+                anchorLabel.style.opacity = '1';
+
+                
+                islandDetail.style.opacity = '0';
+                setTimeout(() => {
+                    islandDetail.style.display = 'none';
+                    island.style.width = 'auto';
+                    island.style.borderRadius = '30px';
+                    islandText.textContent = 'Steady';
+                    islandDot.style.backgroundColor = 'var(--c-acc-green)';
+                }, 200);
+
+                
+                ambientTexts.forEach(el => {
+                    el.style.opacity = '0.9';
+                    el.style.transform = 'none';
+                });
+                widgets.style.transform = 'none';
+                widgets.style.opacity = '1';
+            });
+
+            
+            const renderPhysics = () => {
+                
+                const force = (targetY - currentY) * stiffness;
+                velocityY = (velocityY + force) * damping;
+                currentY += velocityY;
+
+                
+                if (Math.abs(velocityY) < 0.05 && Math.abs(targetY - currentY) < 0.05) {
+                    currentY = targetY;
+                    velocityY = 0;
+                }
+
+                
+                anchor.style.top = `${currentY}px`;
+                updateTether(currentY);
+
+                requestAnimationFrame(renderPhysics);
+            };
+
+            
+            const updateTether = (yPos) => {
+                const startX = ww / 2;
+                const startY = topOriginY;
+                const endX = ww / 2;
+                const endY = yPos - 24; 
+
+                
+                
+                
+                
+                const cx = ww / 2;
+                const cy = startY + (endY - startY) / 2;
+
+                
+                const distance = endY - startY;
+                const baseDistance = restY - topOriginY;
+                const stretchRatio = Math.max(1, distance / baseDistance);
+                const strokeWidth = Math.max(0.5, 1.5 - (stretchRatio - 1) * 0.8);
+
+                tetherPath.setAttribute('d', `M ${startX} ${startY} Q ${cx} ${cy} ${endX} ${endY}`);
+                tetherPath.style.strokeWidth = `${strokeWidth}px`;
+                
+                
+                if (stretchRatio > 1.2 && !isRevealed) {
+                    tetherPath.style.stroke = 'var(--c-acc-red)';
+                } else {
+                    tetherPath.style.stroke = 'var(--c-charcoal)';
+                }
+            };
+
+            
+            window.addEventListener('resize', () => {
+                ww = window.innerWidth;
+                wh = window.innerHeight;
+                if(!isRevealed) {
+                    targetY = wh * 0.35;
+                }
+            });
+
+            
+            renderPhysics();
+        };
+
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            initWebGL();
+            initInteraction();
+        });
+
+    </script>
+
+</body></html>
