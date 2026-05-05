@@ -1,34 +1,104 @@
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "Quicksand", "Inter", system-ui, sans-serif;
+  --font-display: "Quicksand", "Inter", system-ui, sans-serif;
   --font-serif: "Newsreader", Georgia, serif;
 
   /* PULL palette tokens, ported from the original prototypes */
-  --color-canvas: #f2efe8;
+  --color-canvas: #faf7f2;
   --color-ink-main: #3a3c38;
   --color-ink-light: #7a8078;
   --color-ink-sage: #a0aa98;
   --color-accent-green: #6ca350;
+
+  /* Friendly student-room palette */
+  --color-peach:    #ffb39b;
+  --color-mint:     #a8e6cf;
+  --color-sky:      #aee1f9;
+  --color-lavender: #d6c8ff;
+  --color-sun:      #ffe07a;
+  --color-coral:    #ff9aa2;
+  --color-leaf:     #8edc9c;
+  --color-paper:    #fff8ee;
 }
 
 @utility no-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   &::-webkit-scrollbar {
-    display: none; /* Chrome, Safari and Opera */
+    display: none;
   }
 }
 
-/* Lock the body during a pull-down drag — used by Pull.tsx */
+/* Lock the body during a pull-down drag — used by Welcome / PullSelect /
+   SelfCheckinPreset. */
 body.pull-active {
   overscroll-behavior: contain;
   cursor: grabbing;
 }
 
-/* Final reveal animation for the "you are here" note in Pull.tsx.
+/* Final reveal animation for the "you are here" note in SelfCheckinPreset.
    Inline transitions during the drag are short (0.1s linear); when the
    threshold is crossed we swap to this elastic spring transition. */
 .note-revealed {
   transition: all 0.8s cubic-bezier(0.5, 2, 0.5, 0.8) !important;
   opacity: 1 !important;
   transform: translateY(0) scale(1) translateX(-50%) !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Friendly button system used across the new student screens.        */
+/* ------------------------------------------------------------------ */
+
+@utility btn-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 1.75rem;
+  padding: 1rem 1.5rem;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+@utility btn-soft-lg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 2rem;
+  padding: 1.15rem 1.75rem;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+/* Common tonal variants — combine with btn-soft */
+@utility btn-primary {
+  background: linear-gradient(135deg, #ff9c7a 0%, #ff7e9d 100%);
+  color: #fff8ee;
+}
+@utility btn-mint {
+  background: linear-gradient(135deg, #a8e6cf 0%, #7ed4ae 100%);
+  color: #18382b;
+}
+@utility btn-sky {
+  background: linear-gradient(135deg, #aee1f9 0%, #8ec8e9 100%);
+  color: #16384a;
+}
+@utility btn-lav {
+  background: linear-gradient(135deg, #d6c8ff 0%, #b6a4f5 100%);
+  color: #2c2150;
+}
+@utility btn-sun {
+  background: linear-gradient(135deg, #ffe07a 0%, #ffc24a 100%);
+  color: #4a3300;
+}
+@utility btn-paper {
+  background: #fff8ee;
+  color: #3a3c38;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }

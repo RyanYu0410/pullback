@@ -9,6 +9,7 @@
  *   spacing   – px between option rows (default 64)
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { BellGroup } from './PullBell';
 
 interface Props {
   items: string[];
@@ -175,21 +176,17 @@ export function PullSelect({ items, onSelect, spacing = 64 }: Props) {
           ref={stringPathRef}
           d={`M 50 ${STRING_TOP} Q 50 ${(STRING_TOP + firstOptionY) / 2} 50 ${firstOptionY}`}
           fill="none"
-          stroke="#3a4a38"
-          strokeWidth="1.1"
+          stroke="#7a8078"
+          strokeWidth="1.2"
           strokeLinecap="round"
         />
-        {/* Pendant group — translated imperatively */}
+        {/* Pendant — friendly bell. The outer <g> gets a dynamic
+            translate from the spring engine, the inner <g> stays put
+            and positions the bell at (50, firstOptionY). */}
         <g ref={pendantGRef}>
-          <path
-            d={`M 50 ${firstOptionY}
-                C 40 ${firstOptionY} 35 ${firstOptionY + 7} 35 ${firstOptionY + 15}
-                C 35 ${firstOptionY + 24} 41.5 ${firstOptionY + 30} 50 ${firstOptionY + 30}
-                C 58.5 ${firstOptionY + 30} 65 ${firstOptionY + 24} 65 ${firstOptionY + 15}
-                C 65 ${firstOptionY + 7} 60 ${firstOptionY} 50 ${firstOptionY} Z`}
-            fill="#3a4a38"
-          />
-          <circle cx="50" cy={firstOptionY + 16} r="4" fill="#eae8e3" opacity="0.82" />
+          <g transform={`translate(50, ${firstOptionY})`}>
+            <BellGroup scale={1} />
+          </g>
         </g>
       </svg>
 

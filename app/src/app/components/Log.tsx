@@ -2,166 +2,114 @@ import React from 'react';
 import { useNavigate } from 'react-router';
 import { useAppContext, SavedRoute } from '../context/AppContext';
 import { Motion } from './Motion';
-import { CanvasBackground } from './CanvasBackground';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, BookOpen } from 'lucide-react';
 
-type DisplayEntry = {
-  id: string;
-  time: string;
-  ago: string;
-  quote: string;
-  variant: 'flax' | 'glass' | 'rose';
-  route: 'Active' | 'Passive';
-  past?: boolean;
-};
-
-const FALLBACK_ENTRIES: DisplayEntry[] = [
-  { id: 's1', time: '14:02', ago: '3 hrs ago', quote: '“You are here. Everything else can wait.”', variant: 'flax', route: 'Passive' },
-  { id: 's2', time: '09:15', ago: '8 hrs ago', quote: '“Breath as a tether to the present.”', variant: 'glass', route: 'Active', past: true },
-  { id: 's3', time: 'Yesterday', ago: '1d ago', quote: '“Soft focus. Gentle return.”', variant: 'rose', route: 'Passive', past: true },
-  { id: 's4', time: 'Yesterday', ago: '1d ago', quote: '“Letting the noise settle.”', variant: 'flax', route: 'Passive', past: true },
-  { id: 's5', time: 'Nov 12', ago: '2d ago', quote: '“Finding ground in the motion.”', variant: 'glass', route: 'Active', past: true },
+const FALLBACK: { id: string; date: string; title: string; subjects: string[]; minutes: number }[] = [
+  { id: 'd1', date: 'Today', title: 'After-school plan', subjects: ['Math', 'English'], minutes: 50 },
+  { id: 'd2', date: 'Yesterday', title: 'Quiz prep', subjects: ['Science'], minutes: 25 },
+  { id: 'd3', date: 'Mon', title: 'Reading + Art', subjects: ['Reading', 'Art'], minutes: 40 },
 ];
 
-function formatTime(ts: number) {
+function friendlyDate(ts: number) {
   const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatAgo(ts: number) {
-  const diffMs = Date.now() - ts;
-  const hr = diffMs / (1000 * 60 * 60);
-  if (hr < 24) return `${Math.max(1, Math.round(hr))} hr${hr >= 2 ? 's' : ''} ago`;
-  const d = Math.round(hr / 24);
-  return `${d}d ago`;
-}
-
-function variantFromIndex(i: number): DisplayEntry['variant'] {
-  return (['flax', 'glass', 'rose'] as const)[i % 3];
-}
-
-function toEntry(route: SavedRoute, i: number): DisplayEntry {
-  const ts = route.lastUsedAt ?? route.createdAt;
-  return {
-    id: route.id,
-    time: i === 0 ? formatTime(ts) : formatAgo(ts),
-    ago: formatAgo(ts),
-    quote: `“${route.note || route.name || 'a quiet line'}”`,
-    variant: variantFromIndex(i),
-    route: route.uses > 0 ? 'Active' : 'Passive',
-    past: i > 0,
-  };
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /**
- * History & Anchors timeline.
- *
- * Visual language ported from `design-d27218d7...html` — dotted vertical
- * spine, time column, glassy log cards. Real entries are sourced from
- * `AppContext.savedRoutes`; falls back to a curated set of seeds when the
- * user hasn't saved anything yet so the timeline never feels empty.
+ * "What I Did" — a friendly day-by-day list of saved sessions. Falls back
+ * to a small set of seed entries when the user hasn't saved anything yet,
+ * so the screen never feels empty.
  */
 export function Log() {
   const { savedRoutes } = useAppContext();
   const navigate = useNavigate();
 
-  const entries: DisplayEntry[] =
-    savedRoutes.length > 0 ? savedRoutes.map(toEntry) : FALLBACK_ENTRIES;
+  const entries =
+    savedRoutes.length > 0
+      ? savedRoutes.map((r) => toEntry(r))
+      : FALLBACK;
 
   return (
     <Motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex h-full w-full flex-col overflow-hidden bg-[#f2efe8]"
+      className="relative flex h-full w-full flex-col"
+      style={{ background: 'linear-gradient(180deg, #fff8ee 0%, #f6e8ff 100%)' }}
     >
-      <CanvasBackground />
+      <div className="flex items-center justify-between px-6 pt-2">
+        <button
+          onClick={() => navigate(-1)}
+          aria-label="Back"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-stone-500 shadow-sm transition active:scale-95"
+        >
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+        </button>
+        <div className="text-center">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-violet-500">
+            History
+          </span>
+          <h2 className="text-[20px] font-bold leading-tight text-stone-800">
+            What I Did
+          </h2>
+        </div>
+        <span className="h-10 w-10" aria-hidden />
+      </div>
 
-      <div className="relative z-10 flex h-full w-full flex-col">
-        <header className="flex flex-shrink-0 items-center justify-between px-6 pb-3 pt-3">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Back"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/40 text-stone-800 backdrop-blur transition active:scale-95"
-          >
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
-          </button>
-          <span className="text-[13px] font-medium tracking-[-0.2px] text-stone-800">History &amp; Anchors</span>
-          <span className="h-10 w-10" aria-hidden="true" />
-        </header>
-
-        <div className="no-scrollbar relative flex-1 overflow-y-auto px-6 pb-16 pt-2">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-[48px] top-6 bottom-16 z-[1] w-px"
-            style={{
-              background:
-                'repeating-linear-gradient(to bottom, #a0aa98 0, #a0aa98 4px, transparent 4px, transparent 10px)',
-              opacity: 0.3,
-            }}
-          />
-
-          <div className="relative z-[2] flex flex-col gap-8">
-            {entries.map((entry, i) => (
-              <Motion.div
-                key={entry.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 * i }}
-                className="flex gap-5"
-              >
-                <div className="flex w-12 flex-col items-end pt-1">
-                  <span className="text-[11px] font-medium text-stone-500">{entry.time}</span>
+      <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-12 pt-4">
+        <div className="flex flex-col gap-3">
+          {entries.map((e, i) => (
+            <Motion.div
+              key={e.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.04 * i }}
+              className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-stone-200"
+            >
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
+                  {e.date}
+                </span>
+                <span className="text-[11px] font-semibold text-stone-500">
+                  {e.minutes}m
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 text-rose-500">
+                  <BookOpen className="h-4 w-4" strokeWidth={2.2} />
+                </span>
+                <span className="text-[14px] font-bold text-stone-800">{e.title}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {e.subjects.map((s) => (
                   <span
-                    className={`relative z-[3] mt-1.5 -mr-6 h-2 w-2 rounded-full border-[2px] border-[#f2efe8] ${
-                      entry.past ? 'bg-stone-400' : 'bg-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <LogCard variant={entry.variant}>
-                  <p className="font-serif text-[18px] italic leading-snug tracking-[-0.3px] text-stone-800">
-                    {entry.quote}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[1px] text-stone-500">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full border border-stone-400 ${
-                          entry.route === 'Active' ? 'bg-stone-400' : ''
-                        }`}
-                      />
-                      {entry.route} route
-                    </span>
-                    <span className="text-[13px] text-stone-700">{entry.ago}</span>
-                  </div>
-                </LogCard>
-              </Motion.div>
-            ))}
-          </div>
+                    key={s}
+                    className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold text-stone-600"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </Motion.div>
+          ))}
         </div>
       </div>
     </Motion.div>
   );
 }
 
-function LogCard({
-  variant,
-  children,
-}: {
-  variant: 'flax' | 'glass' | 'rose';
-  children: React.ReactNode;
-}) {
-  const bg =
-    variant === 'flax'
-      ? 'from-amber-100/60 to-white/20'
-      : variant === 'glass'
-      ? 'from-stone-100/60 to-white/20'
-      : 'from-rose-100/60 to-white/20';
-  return (
-    <div
-      className={`relative flex-1 overflow-hidden rounded-[20px] border border-black/10 bg-gradient-to-br ${bg} p-5 backdrop-blur`}
-    >
-      {children}
-    </div>
-  );
+function toEntry(r: SavedRoute) {
+  return {
+    id: r.id,
+    date: friendlyDate(r.lastUsedAt ?? r.createdAt),
+    title: r.name || r.note || 'After-school plan',
+    subjects: r.items.slice(0, 4).map((i) => i.label),
+    minutes: r.paceMinutes != null ? r.paceMinutes * Math.max(r.items.length, 1) : r.items.length * 25,
+  };
 }

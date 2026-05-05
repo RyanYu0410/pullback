@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import type { SessionStatus } from '../design/palettes';
 
 export type CardType = 'app' | 'red' | 'green' | 'yellow' | 'blue' | 'white';
@@ -31,21 +31,108 @@ export type WidgetPreset =
 
 /**
  * App-wide background style, chosen in Settings.
- * Each maps to a distinct WebGL shader + overlay tint in CanvasBackground / Root.tsx.
- *
- * void   — pitch-dark canvas, neon-lime stars
- * cosmos — deep-navy canvas, indigo stars
- * clay   — warm terracotta canvas, amber stars
- * honey  — soft parchment canvas, coral stars  ← default
- * steel  — cool grey canvas, teal stars
- * iris   — pale lavender canvas, periwinkle stars
  */
 export type BgStyle = 'void' | 'cosmos' | 'clay' | 'honey' | 'steel' | 'iris';
 
-/** Returns true for dark-canvas themes so callers can adjust text/overlay accordingly. */
 export function isDarkBg(style: BgStyle): boolean {
   return style === 'void' || style === 'cosmos';
 }
+
+/* --------------------------------------------------------------------- */
+/* Study-room layer — mocked friends + routine                            */
+/* --------------------------------------------------------------------- */
+
+export type FriendStatus =
+  | 'focusing'
+  | 'on_break'
+  | 'finished'
+  | 'needs_help'
+  | 'offline';
+
+export interface Friend {
+  id: string;
+  name: string;
+  emoji: string;
+  status: FriendStatus;
+  subject?: string;
+  /** Minutes left in their current focus block (only meaningful if focusing/on_break). */
+  minutesLeft?: number;
+  /** True when this friend has just sent the user a wave/cheer. */
+  waving?: boolean;
+  /**
+   * Stable seat position around the study-room table, in 0..1 coords.
+   * `RoomScene` uses these to keep each friend in the same chair across
+   * status changes, so the room feels like a real space rather than a
+   * shuffling list.
+   */
+  seat: { x: number; y: number };
+}
+
+/* --------------------------------------------------------------------- */
+/* Room chatter — a tiny rolling feed of "who just did what" so the      */
+/* room feels alive even when nothing is happening to the user.          */
+/* --------------------------------------------------------------------- */
+
+export type RoomEventKind =
+  | 'wave'
+  | 'started_focus'
+  | 'started_break'
+  | 'finished'
+  | 'asked_help'
+  | 'arrived'
+  | 'left';
+
+export interface RoomEvent {
+  id: number;
+  /** Friend id, or 'me' when the user is the actor. */
+  fromId: string;
+  /** For directed events like waves; otherwise undefined. */
+  toId?: string;
+  kind: RoomEventKind;
+  text: string;
+  ts: number;
+}
+
+/* --------------------------------------------------------------------- */
+/* Room pulse — a one-shot signal that components can listen to in       */
+/* useEffect to play short reactions (e.g. friends look up when you      */
+/* pull your bell, a friend bows when they start focusing).              */
+/* --------------------------------------------------------------------- */
+
+export interface RoomPulse {
+  id: number;
+  fromId: string;
+  kind: 'pull' | 'wave' | 'break' | 'finish' | 'help';
+}
+
+export interface Routine {
+  /** Local time string in HH:MM. */
+  startTime: string;
+  subjects: string[];
+  focusMinutes: number;
+  breakMinutes: number;
+  mode: 'alone' | 'together';
+}
+
+const DEFAULT_ROUTINE: Routine = {
+  startTime: '16:00',
+  subjects: [],
+  focusMinutes: 25,
+  breakMinutes: 10,
+  mode: 'together',
+};
+
+/* Seats are arranged around a virtual round table in the room. Numbers
+   are 0..1 in the RoomScene viewBox; (0.5, 0.85) is the front-center
+   seat reserved for the user. */
+const SEED_FRIENDS: Friend[] = [
+  { id: 'f1', name: 'Mia',   emoji: '🦊', status: 'focusing',    subject: 'Math',    minutesLeft: 18, seat: { x: 0.22, y: 0.32 } },
+  { id: 'f2', name: 'Leo',   emoji: '🐼', status: 'on_break',    subject: 'Science', minutesLeft: 4 , seat: { x: 0.50, y: 0.22 } },
+  { id: 'f3', name: 'Aya',   emoji: '🐰', status: 'focusing',    subject: 'English', minutesLeft: 12, seat: { x: 0.78, y: 0.32 } },
+  { id: 'f4', name: 'Theo',  emoji: '🐯', status: 'finished',    subject: 'History',                  seat: { x: 0.14, y: 0.66 } },
+  { id: 'f5', name: 'Nora',  emoji: '🐨', status: 'needs_help',  subject: 'Math',    minutesLeft: 9 , seat: { x: 0.86, y: 0.66 } },
+  { id: 'f6', name: 'Sam',   emoji: '🐧', status: 'offline',                                          seat: { x: 0.06, y: 0.20 } },
+];
 
 interface AppContextState {
   hasEntered: boolean;
@@ -75,24 +162,35 @@ interface AppContextState {
   saveCurrentRoute: (name: string) => SavedRoute;
   loadSavedRoute: (id: string) => SavedRoute | undefined;
   addReflectionToRoute: (id: string, reflection: string) => void;
-  /** User-chosen layout preset for the Pull/Home widget. */
   widgetPreset: WidgetPreset;
   setWidgetPreset: (preset: WidgetPreset) => void;
-  /** App-wide background style chosen in Settings. */
   bgStyle: BgStyle;
   setBgStyle: (s: BgStyle) => void;
-  /** Timestamp (ms) when the current pull session started; null = not running. */
   sessionStartTime: number | null;
   setSessionStartTime: (t: number | null) => void;
-  /** Number of times user pressed "come back" in the current session. */
   returnsMade: number;
   incrementReturns: () => void;
-  /** Auto-driven palette phase. */
   sessionStatus: SessionStatus;
   setSessionStatus: (status: SessionStatus) => void;
   activeRouteId: string | null;
   setActiveRouteId: (id: string | null) => void;
   resetDraft: () => void;
+
+  /* Routine + study-room layer */
+  routine: Routine;
+  setRoutine: (r: Routine) => void;
+  hasRoutine: boolean;
+  mySelf: Friend;
+  updateMyStatus: (status: FriendStatus, extras?: Partial<Friend>) => void;
+  friends: Friend[];
+  sendWaveTo: (friendId: string) => void;
+  askForHelp: () => void;
+  /** Rolling list of recent room events (last ~10), newest first. */
+  roomEvents: RoomEvent[];
+  /** Last "look up" / "bow" pulse — components animate when `id` changes. */
+  roomPulse: RoomPulse;
+  /** Emit a one-shot pulse so other on-screen characters can react. */
+  pulseRoom: (fromId: string, kind: RoomPulse['kind']) => void;
 }
 
 const AppContext = createContext<AppContextState | undefined>(undefined);
@@ -115,6 +213,178 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [returnsMade, setReturnsMade] = useState(0);
   const incrementReturns = () => setReturnsMade((n) => n + 1);
+
+  /* Routine + room state */
+  const [routine, setRoutineState] = useState<Routine>(DEFAULT_ROUTINE);
+  const [hasRoutine, setHasRoutine] = useState(false);
+  const [mySelf, setMySelf] = useState<Friend>({
+    id: 'me',
+    name: 'You',
+    emoji: '🐶',
+    status: 'offline',
+    seat: { x: 0.50, y: 0.86 },
+  });
+  const [friends, setFriends] = useState<Friend[]>(SEED_FRIENDS);
+  const [roomEvents, setRoomEvents] = useState<RoomEvent[]>([]);
+  const [roomPulse, setRoomPulse] = useState<RoomPulse>({
+    id: 0,
+    fromId: '',
+    kind: 'pull',
+  });
+
+  const setRoutine = (r: Routine) => {
+    setRoutineState(r);
+    setHasRoutine(true);
+  };
+
+  /* Internal: append an event to the rolling chatter feed (cap at 10). */
+  const eventIdRef = useRef(1);
+  const pushEvent = (ev: Omit<RoomEvent, 'id' | 'ts'>) => {
+    const next: RoomEvent = {
+      ...ev,
+      id: eventIdRef.current++,
+      ts: Date.now(),
+    };
+    setRoomEvents((prev) => [next, ...prev].slice(0, 10));
+  };
+
+  /* Internal: bump the room pulse so listeners can play a one-shot
+     reaction. id strictly increases so React deps work. */
+  const pulseIdRef = useRef(0);
+  const pulseRoom: AppContextState['pulseRoom'] = (fromId, kind) => {
+    pulseIdRef.current += 1;
+    setRoomPulse({ id: pulseIdRef.current, fromId, kind });
+  };
+
+  const updateMyStatus = (status: FriendStatus, extras?: Partial<Friend>) => {
+    setMySelf((m) => {
+      const wasOffline = m.status === 'offline';
+      const next = { ...m, ...extras, status };
+      // Emit a chatter event when the user's state changes meaningfully.
+      if (status !== m.status) {
+        if (wasOffline && status === 'focusing') {
+          pushEvent({ fromId: 'me', kind: 'arrived', text: 'You sat down at the table' });
+        }
+        if (status === 'focusing') {
+          pulseRoom('me', 'pull');
+          if (!wasOffline) pushEvent({ fromId: 'me', kind: 'started_focus', text: 'You started focusing' });
+        }
+        if (status === 'on_break') {
+          pulseRoom('me', 'break');
+          pushEvent({ fromId: 'me', kind: 'started_break', text: 'You took a break' });
+        }
+        if (status === 'finished') {
+          pulseRoom('me', 'finish');
+          pushEvent({ fromId: 'me', kind: 'finished', text: 'You finished for today!' });
+        }
+        if (status === 'needs_help') {
+          pulseRoom('me', 'help');
+          pushEvent({ fromId: 'me', kind: 'asked_help', text: 'You asked for help' });
+        }
+      }
+      return next;
+    });
+  };
+
+  const sendWaveTo = (friendId: string) => {
+    const target = friends.find((f) => f.id === friendId);
+    setFriends((prev) =>
+      prev.map((f) => (f.id === friendId ? { ...f, waving: true } : f)),
+    );
+    pulseRoom(friendId, 'wave');
+    if (target) {
+      pushEvent({
+        fromId: 'me',
+        toId: friendId,
+        kind: 'wave',
+        text: `You waved at ${target.name}`,
+      });
+    }
+    setTimeout(() => {
+      setFriends((prev) =>
+        prev.map((f) => (f.id === friendId ? { ...f, waving: false } : f)),
+      );
+    }, 2200);
+  };
+
+  const askForHelp = () => {
+    updateMyStatus('needs_help');
+  };
+
+  /* Mocked liveness — friends drift between statuses every ~25–45s so the
+     room feels populated even without a backend. Each transition that's
+     visible to the user also lands as a line in the chatter feed and (for
+     the more energetic transitions) bumps the room pulse. */
+  const tickRef = useRef(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      tickRef.current += 1;
+      setFriends((prev) =>
+        prev.map((f, idx) => {
+          if ((tickRef.current + idx) % 3 !== 0) return f;
+          const nextStatus = nextFriendStatus(f.status);
+          if (nextStatus !== f.status) {
+            // Defer to avoid setState-during-setState in React 18 strict.
+            queueMicrotask(() => {
+              if (nextStatus === 'focusing') {
+                pushEvent({
+                  fromId: f.id,
+                  kind: 'started_focus',
+                  text: `${f.name} opened ${f.subject ?? 'a book'}`,
+                });
+                pulseRoom(f.id, 'pull');
+              } else if (nextStatus === 'on_break') {
+                pushEvent({
+                  fromId: f.id,
+                  kind: 'started_break',
+                  text: `${f.name} is on a break`,
+                });
+              } else if (nextStatus === 'finished') {
+                pushEvent({
+                  fromId: f.id,
+                  kind: 'finished',
+                  text: `${f.name} finished ${f.subject ?? 'their work'} 🎉`,
+                });
+                pulseRoom(f.id, 'finish');
+              } else if (nextStatus === 'needs_help') {
+                pushEvent({
+                  fromId: f.id,
+                  kind: 'asked_help',
+                  text: `${f.name} could use some help`,
+                });
+              } else if (nextStatus === 'offline' && f.status !== 'offline') {
+                pushEvent({
+                  fromId: f.id,
+                  kind: 'left',
+                  text: `${f.name} stepped away`,
+                });
+              }
+            });
+          }
+          return {
+            ...f,
+            status: nextStatus,
+            minutesLeft:
+              nextStatus === 'focusing'
+                ? Math.max(5, Math.floor(Math.random() * 25) + 5)
+                : nextStatus === 'on_break'
+                ? Math.max(2, Math.floor(Math.random() * 8) + 2)
+                : undefined,
+          };
+        }),
+      );
+    }, 30_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* On first mount, seed the chatter so the room never feels empty. */
+  useEffect(() => {
+    pushEvent({ fromId: 'f1', kind: 'started_focus', text: 'Mia opened Math' });
+    pushEvent({ fromId: 'f3', kind: 'started_focus', text: 'Aya opened English' });
+    pushEvent({ fromId: 'f2', kind: 'started_break', text: 'Leo is on a break' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleCompleted = (id: string) => {
     setCompletedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
@@ -240,6 +510,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSessionStartTime,
         returnsMade,
         incrementReturns,
+        routine,
+        setRoutine,
+        hasRoutine,
+        mySelf,
+        updateMyStatus,
+        friends,
+        sendWaveTo,
+        askForHelp,
+        roomEvents,
+        roomPulse,
+        pulseRoom,
       }}
     >
       {children}
@@ -254,3 +535,40 @@ export function useAppContext() {
   }
   return context;
 }
+
+/** Helpers used by the friendly study-room layer. */
+function nextFriendStatus(s: FriendStatus): FriendStatus {
+  const ladder: Record<FriendStatus, FriendStatus[]> = {
+    offline:    ['focusing', 'focusing', 'offline'],
+    focusing:   ['on_break', 'finished', 'focusing'],
+    on_break:   ['focusing', 'focusing', 'needs_help'],
+    needs_help: ['focusing', 'on_break'],
+    finished:   ['offline', 'finished'],
+  };
+  const opts = ladder[s];
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+
+export const STATUS_LABEL: Record<FriendStatus, string> = {
+  focusing:   'Focusing',
+  on_break:   'On a break',
+  finished:   'Finished!',
+  needs_help: 'Needs help',
+  offline:    'Offline',
+};
+
+export const STATUS_EMOJI: Record<FriendStatus, string> = {
+  focusing:   '✏️',
+  on_break:   '🍪',
+  finished:   '🎉',
+  needs_help: '🙋',
+  offline:    '💤',
+};
+
+export const STATUS_TONE: Record<FriendStatus, { bg: string; ring: string; text: string }> = {
+  focusing:   { bg: 'bg-emerald-100', ring: 'ring-emerald-300', text: 'text-emerald-700' },
+  on_break:   { bg: 'bg-amber-100',   ring: 'ring-amber-300',   text: 'text-amber-700'   },
+  finished:   { bg: 'bg-violet-100',  ring: 'ring-violet-300',  text: 'text-violet-700'  },
+  needs_help: { bg: 'bg-rose-100',    ring: 'ring-rose-300',    text: 'text-rose-700'    },
+  offline:    { bg: 'bg-stone-100',   ring: 'ring-stone-300',   text: 'text-stone-500'   },
+};
