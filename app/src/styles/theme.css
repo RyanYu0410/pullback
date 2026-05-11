@@ -102,3 +102,295 @@ body.pull-active {
   color: #3a3c38;
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
+
+/* ------------------------------------------------------------------ */
+/* PULL Design System — canonical patterns                             */
+/* Use these utilities instead of redefining shadow/ring/radius combos */
+/* in every component, so every screen feels part of the same family.  */
+/* ------------------------------------------------------------------ */
+
+/* Glassy frosted card — the standard surface for content cards. */
+@utility card-glass {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 1rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+/* Larger panel / bottom-sheet surface. */
+@utility card-glass-lg {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 1.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+/* Soft pastel chip used for summary metadata. */
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.25rem 0.75rem;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b6f68;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Uppercase micro-label used above titles ("TODAY", "WELCOME TO"). */
+@utility kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fb7185; /* rose-400 */
+}
+
+/* Standard 40×40 round icon button — used in screen headers. */
+@utility icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #6b6f68;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* Compact 32×32 variant — used inside cards / sheets. */
+@utility icon-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 9999px;
+  background: rgba(244, 244, 240, 0.9);
+  color: #6b6f68;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+.icon-btn-sm:active {
+  transform: scale(0.9);
+}
+
+/* Live "online" pulsing dot — used wherever an active status is shown. */
+@utility online-dot {
+  position: relative;
+  display: inline-flex;
+  height: 0.5rem;
+  width: 0.5rem;
+}
+@keyframes pull-online-ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+.online-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: #34d399; /* emerald-400 */
+  opacity: 0.75;
+  animation: pull-online-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.online-dot::after {
+  content: '';
+  position: relative;
+  display: inline-flex;
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  background: #10b981; /* emerald-500 */
+}
+
+/* Avatar — circular emoji bubble used in headers. */
+@utility avatar-bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  outline: 1.5px solid rgba(251, 113, 133, 0.30);
+  outline-offset: -0.5px;
+  transition: transform 0.12s ease;
+}
+.avatar-bubble:active {
+  transform: scale(0.93);
+}
+
+/* ------------------------------------------------------------------ */
+/* Minimal-design tokens — for the editorial pass.                     */
+/* These exist to enforce restraint: hairlines, serif headlines,       */
+/* tabular times, quiet text-only links.                               */
+/* ------------------------------------------------------------------ */
+
+/* A hair-thin separator. Use sparingly — usually at most once per page. */
+@utility hairline {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 0;
+}
+
+/* Editorial display headline using the project's serif font. */
+@utility serif-display {
+  font-family: "Newsreader", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-feature-settings: "ss01", "lnum";
+}
+
+/* Tabular monospaced numerals for times and counts. */
+@utility time-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "lnum";
+  letter-spacing: 0.01em;
+}
+
+/* A whisper-quiet text link — for "skip", "back", footnote actions. */
+@utility soft-link {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #9ca29a;
+  transition: color 0.15s ease;
+  cursor: pointer;
+}
+.soft-link:hover {
+  color: #6b6f68;
+}
+
+/* Schedule row — a quiet 3-column line: time · subject · duration. */
+@utility schedule-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 0;
+  font-size: 14px;
+  color: #3a3c38;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+.schedule-row:first-child {
+  border-top: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Garden tokens — side-view "fake-3D" planes for the track calendar.  */
+/* These are kept here so any future garden surface (history detail,   */
+/* streak widgets) renders the same world.                             */
+/* ------------------------------------------------------------------ */
+
+/* Vertical sky → ground gradient.                                      */
+/* paper at the top, faint mint band at the horizon.                    */
+@utility garden-sky {
+  background: linear-gradient(
+    180deg,
+    #fff8ee 0%,
+    #fff8ee 55%,
+    #f3ecde 78%,
+    #e8e2d3 100%
+  );
+}
+
+/* Foreground soil strip — sits along the horizon line.                 */
+@utility garden-soil {
+  background: linear-gradient(
+    180deg,
+    #c2a47a 0%,
+    #a98864 32%,
+    #8a6c4d 100%
+  );
+}
+
+/* The hairline horizon — same hairline tone, used inside the garden.   */
+@utility garden-horizon {
+  height: 1px;
+  background: rgba(58, 60, 56, 0.10);
+  border: 0;
+}
+
+/* Day-column inside the calendar track. Fixed width so 14 columns make  */
+/* a predictable scrollable strip. Snap-aligns for tactile scrolling.    */
+@utility garden-col {
+  flex: 0 0 56px;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+}
+
+/* Soft shadow under each plant on the soil — fakes a contact shadow. */
+@utility plant-shadow {
+  filter: drop-shadow(0 1px 0 rgba(58, 60, 56, 0.10));
+}
+
+/* Tiny sun marker that hovers above today's column. */
+@utility today-sun {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 45%, #ffe07a 0%, #ffc24a 70%, #ffb13a 100%);
+  box-shadow: 0 0 0 4px rgba(255, 224, 122, 0.18);
+}
+
+/* ------------------------------------------------------------------ */
+/* Interior tokens — side-view "fake-3D" room used by StudyRoom.       */
+/* Same plane-stacking discipline as the garden:                       */
+/*   wall (back) → window/clock/bell → mid furniture → floor strip.    */
+/* ------------------------------------------------------------------ */
+
+/* Back-wall paint — slightly darker than paper so the wall reads as
+   "behind" the foreground without breaking the canvas family. */
+@utility room-wall {
+  background: linear-gradient(
+    180deg,
+    #f5ecdb 0%,
+    #ede3d0 60%,
+    #e6dcc8 100%
+  );
+}
+
+/* Floor strip — a warm wood plane at the bottom of the room. */
+@utility room-floor {
+  background: linear-gradient(
+    180deg,
+    #c8aa82 0%,
+    #b39068 32%,
+    #957652 100%
+  );
+}
+
+/* The window pane — paper showing through the wall, with the same
+   sky/cloud feeling as the garden so the two pages rhyme. */
+@utility wall-window {
+  background: linear-gradient(180deg, #fff8ee 0%, #f3ecde 100%);
+  border: 1px solid rgba(58, 60, 56, 0.10);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 4px rgba(255, 248, 238, 0.6);
+}

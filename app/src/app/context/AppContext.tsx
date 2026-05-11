@@ -9,6 +9,13 @@ export interface RouteItem {
   label: string;
 }
 
+/** A single user-added task nested under a subject (RouteItem). */
+export interface SubTask {
+  id: string;
+  subjectId: string;
+  label: string;
+}
+
 export interface SavedRoute {
   id: string;
   name: string;
@@ -137,6 +144,25 @@ const SEED_FRIENDS: Friend[] = [
 interface AppContextState {
   hasEntered: boolean;
   setHasEntered: (val: boolean) => void;
+
+  /** True once the user has completed the profile/login step. */
+  hasLoggedIn: boolean;
+  setHasLoggedIn: (val: boolean) => void;
+  /** Display name chosen during login. */
+  userName: string;
+  setUserName: (name: string) => void;
+  /** Emoji avatar chosen during login. */
+  userEmoji: string;
+  setUserEmoji: (emoji: string) => void;
+
+  /** Sub-tasks the user has added under each subject. */
+  subTasks: SubTask[];
+  addSubTask: (subjectId: string, label: string) => void;
+  removeSubTask: (id: string) => void;
+  completedSubTaskIds: string[];
+  toggleSubTaskCompleted: (id: string) => void;
+  clearSubTasksForSubject: (subjectId: string) => void;
+
   ownership: string;
   setOwnership: (val: string) => void;
   pace: string;
@@ -191,12 +217,51 @@ interface AppContextState {
   roomPulse: RoomPulse;
   /** Emit a one-shot pulse so other on-screen characters can react. */
   pulseRoom: (fromId: string, kind: RoomPulse['kind']) => void;
+
+  /* Study-together room code */
+  /** Short room code (e.g. "OAK42") — null until the user creates or joins a room. */
+  roomCode: string | null;
+  /** Human-friendly room name derived from the code (e.g. "Oak Room"). */
+  roomName: string | null;
+  /** Join an existing room by code. Normalises and stores the code + name. */
+  joinRoom: (code: string) => void;
+  /** Create a new room with a freshly generated code. */
+  createRoom: () => void;
 }
 
 const AppContext = createContext<AppContextState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hasEntered, setHasEntered] = useState(false);
+  const [hasLoggedIn, setHasLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmoji, setUserEmoji] = useState('🐶');
+  const [subTasks, setSubTasks] = useState<SubTask[]>([]);
+  const [completedSubTaskIds, setCompletedSubTaskIds] = useState<string[]>([]);
+
+  const addSubTask = (subjectId: string, label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    setSubTasks((prev) => [
+      ...prev,
+      { id: Math.random().toString(36).substring(2, 9), subjectId, label: trimmed },
+    ]);
+  };
+  const removeSubTask = (id: string) => {
+    setSubTasks((prev) => prev.filter((t) => t.id !== id));
+    setCompletedSubTaskIds((prev) => prev.filter((i) => i !== id));
+  };
+  const toggleSubTaskCompleted = (id: string) => {
+    setCompletedSubTaskIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  };
+  const clearSubTasksForSubject = (subjectId: string) => {
+    const idsToRemove = subTasks.filter((t) => t.subjectId === subjectId).map((t) => t.id);
+    setSubTasks((prev) => prev.filter((t) => t.subjectId !== subjectId));
+    setCompletedSubTaskIds((prev) => prev.filter((id) => !idsToRemove.includes(id)));
+  };
+
   const [ownership, setOwnership] = useState('');
   const [pace, setPace] = useState('');
   const [paceMinutes, setPaceMinutes] = useState<number | null>(null);
@@ -213,6 +278,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [returnsMade, setReturnsMade] = useState(0);
   const incrementReturns = () => setReturnsMade((n) => n + 1);
+
+  /* Room code */
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [roomName, setRoomName] = useState<string | null>(null);
+
+  const joinRoom = (code: string) => {
+    const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    if (!clean) return;
+    setRoomCode(clean);
+    setRoomName(roomNameFromCode(clean));
+  };
+  const createRoom = () => {
+    const code = generateRoomCode();
+    setRoomCode(code);
+    setRoomName(roomNameFromCode(code));
+  };
 
   /* Routine + room state */
   const [routine, setRoutineState] = useState<Routine>(DEFAULT_ROUTINE);
@@ -405,6 +486,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsLinePulled(false);
     setRouteItems([]);
     setCompletedIds([]);
+    setSubTasks([]);
+    setCompletedSubTaskIds([]);
     setSessionActive(false);
     setActiveRouteId(null);
     setSessionStatus('drifting');
@@ -472,6 +555,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         hasEntered,
         setHasEntered,
+        hasLoggedIn,
+        setHasLoggedIn,
+        userName,
+        setUserName,
+        userEmoji,
+        setUserEmoji,
+        subTasks,
+        addSubTask,
+        removeSubTask,
+        completedSubTaskIds,
+        toggleSubTaskCompleted,
+        clearSubTasksForSubject,
         ownership,
         setOwnership,
         pace,
@@ -521,6 +616,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         roomEvents,
         roomPulse,
         pulseRoom,
+        roomCode,
+        roomName,
+        joinRoom,
+        createRoom,
       }}
     >
       {children}
@@ -534,6 +633,28 @@ export function useAppContext() {
     throw new Error('useAppContext must be used within an AppProvider');
   }
   return context;
+}
+
+/* --------------------------------------------------------------------- */
+/* Room code helpers                                                      */
+/* --------------------------------------------------------------------- */
+
+const ROOM_WORDS = ['OAK', 'PINE', 'MOSS', 'FERN', 'LILY', 'IRIS', 'REED', 'SAGE', 'BAY', 'ELM'] as const;
+const ROOM_WORD_NAMES: Record<string, string> = {
+  OAK: 'Oak Room',  PINE: 'Pine Room', MOSS: 'Moss Room', FERN: 'Fern Room',
+  LILY: 'Lily Room', IRIS: 'Iris Room', REED: 'Reed Room', SAGE: 'Sage Room',
+  BAY: 'Bay Room',  ELM: 'Elm Room',
+};
+
+function generateRoomCode(): string {
+  const word = ROOM_WORDS[Math.floor(Math.random() * ROOM_WORDS.length)];
+  const num  = Math.floor(Math.random() * 90) + 10; // 10–99
+  return `${word}${num}`;
+}
+
+export function roomNameFromCode(code: string): string {
+  const word = code.replace(/[0-9]/g, '');
+  return ROOM_WORD_NAMES[word] ?? `Room ${code}`;
 }
 
 /** Helpers used by the friendly study-room layer. */
@@ -572,3 +693,12 @@ export const STATUS_TONE: Record<FriendStatus, { bg: string; ring: string; text:
   needs_help: { bg: 'bg-rose-100',    ring: 'ring-rose-300',    text: 'text-rose-700'    },
   offline:    { bg: 'bg-stone-100',   ring: 'ring-stone-300',   text: 'text-stone-500'   },
 };
+
+/**
+ * Mocked global online-learner count. Single source of truth so the same
+ * number appears on Welcome, the home screen, and any future surface.
+ */
+export const ONLINE_USERS = 2_847;
+export function formatOnlineUsers(): string {
+  return `${ONLINE_USERS.toLocaleString()} online users studying now`;
+}

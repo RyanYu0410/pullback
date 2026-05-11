@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useOutlet } from 'react-router';
 import { useAppContext } from '../context/AppContext';
 import { AnimatePresence } from './Motion';
 import { CanvasBackground } from './CanvasBackground';
+import { BottomNav, useShowBottomNav } from './BottomNav';
 
 /**
  * A friendly, low-saturation wash sits over the WebGL canvas so type stays
@@ -20,23 +21,26 @@ const BG_OVERLAY: Record<string, string> = {
 };
 
 export function Root() {
-  const { hasEntered, hasRoutine, bgStyle } = useAppContext();
+  const { hasEntered, hasLoggedIn, hasRoutine, bgStyle } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const outlet = useOutlet();
+  const showNav = useShowBottomNav();
 
-  /* Onboarding gate — only the index route auto-redirects. Direct visits to
-     other routes are honoured so deep-links and back-button work. */
+  /* Onboarding gate — only the index route auto-redirects.
+     Flow: / → /welcome → /login → /setup/* → /routine */
   useEffect(() => {
     if (location.pathname !== '/') return;
     if (!hasEntered) {
       navigate('/welcome', { replace: true });
+    } else if (!hasLoggedIn) {
+      navigate('/login', { replace: true });
     } else if (!hasRoutine) {
       navigate('/setup/start-time', { replace: true });
     } else {
       navigate('/routine', { replace: true });
     }
-  }, [hasEntered, hasRoutine, location.pathname, navigate]);
+  }, [hasEntered, hasLoggedIn, hasRoutine, location.pathname, navigate]);
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-[#fff8ee] text-stone-800 font-sans">
@@ -51,9 +55,12 @@ export function Root() {
           <div className="h-6 w-32 rounded-full bg-stone-900"></div>
         </div>
         <div className="relative z-10 flex h-full w-full flex-col overflow-hidden pt-12">
-          <AnimatePresence mode="wait">
-            {outlet ? React.cloneElement(outlet, { key: location.pathname }) : null}
-          </AnimatePresence>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {outlet ? React.cloneElement(outlet, { key: location.pathname }) : null}
+            </AnimatePresence>
+          </div>
+          {showNav && <BottomNav />}
         </div>
       </div>
     </div>

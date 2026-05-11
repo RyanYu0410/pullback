@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router";
 import { Root } from "./components/Root";
 import { Welcome } from "./components/Welcome";
+import { Login } from "./components/Login";
 import { Home } from "./components/Home";
 import { Tree } from "./components/Tree";
 import { Settings } from "./components/Settings";
@@ -32,6 +33,7 @@ export const router = createBrowserRouter(
       children: [
         { index: true, Component: Home },
         { path: 'welcome', Component: Welcome },
+        { path: 'login',   Component: Login   },
 
         /* Routine setup wizard */
         { path: 'setup/start-time',   Component: StartTime  },

@@ -8,8 +8,9 @@ import { useAppContext } from '../context/AppContext';
  * direct visit to `/` ends up somewhere friendly.
  */
 export function Home() {
-  const { hasEntered, hasRoutine } = useAppContext();
+  const { hasEntered, hasLoggedIn, hasRoutine } = useAppContext();
   if (!hasEntered) return <Navigate to="/welcome" replace />;
+  if (!hasLoggedIn) return <Navigate to="/login" replace />;
   if (!hasRoutine) return <Navigate to="/setup/start-time" replace />;
   return <Navigate to="/routine" replace />;
 }
