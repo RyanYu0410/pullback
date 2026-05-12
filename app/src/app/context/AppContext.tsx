@@ -56,6 +56,8 @@ export type FriendStatus =
   | 'needs_help'
   | 'offline';
 
+export type ContactPlatform = 'instagram' | 'discord' | 'snapchat' | 'phone';
+
 export interface Friend {
   id: string;
   name: string;
@@ -66,6 +68,8 @@ export interface Friend {
   minutesLeft?: number;
   /** True when this friend has just sent the user a wave/cheer. */
   waving?: boolean;
+  /** Public contact info this friend has chosen to share. Revealed on mutual wave. */
+  contact?: { platform: ContactPlatform; handle: string };
   /**
    * Stable seat position around the study-room table, in 0..1 coords.
    * `RoomScene` uses these to keep each friend in the same chair across
@@ -133,12 +137,12 @@ const DEFAULT_ROUTINE: Routine = {
    are 0..1 in the RoomScene viewBox; (0.5, 0.85) is the front-center
    seat reserved for the user. */
 const SEED_FRIENDS: Friend[] = [
-  { id: 'f1', name: 'Mia',   emoji: '🦊', status: 'focusing',    subject: 'Math',    minutesLeft: 18, seat: { x: 0.22, y: 0.32 } },
-  { id: 'f2', name: 'Leo',   emoji: '🐼', status: 'on_break',    subject: 'Science', minutesLeft: 4 , seat: { x: 0.50, y: 0.22 } },
-  { id: 'f3', name: 'Aya',   emoji: '🐰', status: 'focusing',    subject: 'English', minutesLeft: 12, seat: { x: 0.78, y: 0.32 } },
-  { id: 'f4', name: 'Theo',  emoji: '🐯', status: 'finished',    subject: 'History',                  seat: { x: 0.14, y: 0.66 } },
-  { id: 'f5', name: 'Nora',  emoji: '🐨', status: 'needs_help',  subject: 'Math',    minutesLeft: 9 , seat: { x: 0.86, y: 0.66 } },
-  { id: 'f6', name: 'Sam',   emoji: '🐧', status: 'offline',                                          seat: { x: 0.06, y: 0.20 } },
+  { id: 'f1', name: 'Mia',   emoji: '🦊', status: 'focusing',    subject: 'Math',    minutesLeft: 18, contact: { platform: 'instagram', handle: '@mia.study'   }, seat: { x: 0.22, y: 0.32 } },
+  { id: 'f2', name: 'Leo',   emoji: '🐼', status: 'on_break',    subject: 'Science', minutesLeft: 4,  contact: { platform: 'discord',   handle: 'leo#4821'      }, seat: { x: 0.50, y: 0.22 } },
+  { id: 'f3', name: 'Aya',   emoji: '🐰', status: 'focusing',    subject: 'English', minutesLeft: 12, contact: { platform: 'snapchat',  handle: 'aya_snaps'     }, seat: { x: 0.78, y: 0.32 } },
+  { id: 'f4', name: 'Theo',  emoji: '🐯', status: 'finished',    subject: 'History',                  contact: { platform: 'instagram', handle: '@theo.reads'   }, seat: { x: 0.14, y: 0.66 } },
+  { id: 'f5', name: 'Nora',  emoji: '🐨', status: 'needs_help',  subject: 'Math',    minutesLeft: 9,  contact: { platform: 'phone',     handle: '+1 555-0192'   }, seat: { x: 0.86, y: 0.66 } },
+  { id: 'f6', name: 'Sam',   emoji: '🐧', status: 'offline',                                                                                                         seat: { x: 0.06, y: 0.20 } },
 ];
 
 interface AppContextState {
@@ -188,6 +192,7 @@ interface AppContextState {
   saveCurrentRoute: (name: string) => SavedRoute;
   loadSavedRoute: (id: string) => SavedRoute | undefined;
   addReflectionToRoute: (id: string, reflection: string) => void;
+  clearSavedRoutes: () => void;
   widgetPreset: WidgetPreset;
   setWidgetPreset: (preset: WidgetPreset) => void;
   bgStyle: BgStyle;
@@ -217,6 +222,9 @@ interface AppContextState {
   roomPulse: RoomPulse;
   /** Emit a one-shot pulse so other on-screen characters can react. */
   pulseRoom: (fromId: string, kind: RoomPulse['kind']) => void;
+
+  /** True when the chosen bgStyle is dark (cosmos / void). */
+  isDark: boolean;
 
   /* Study-together room code */
   /** Short room code (e.g. "OAK42") — null until the user creates or joins a room. */
@@ -270,7 +278,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [routeItems, setRouteItems] = useState<RouteItem[]>([]);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [sessionActive, setSessionActive] = useState(false);
-  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>(() => {
+    const now = Date.now();
+    const day = 86_400_000;
+    return [
+      { id: 'seed1', name: 'Math',        pace: '25', paceMinutes: 25, note: '', items: [], reflections: [], createdAt: now - 0 * day,   lastUsedAt: now - 0 * day,   uses: 1 },
+      { id: 'seed2', name: 'English',     pace: '25', paceMinutes: 30, note: '', items: [], reflections: [], createdAt: now - 1 * day,   lastUsedAt: now - 1 * day,   uses: 1 },
+      { id: 'seed3', name: 'Science',     pace: '25', paceMinutes: 45, note: '', items: [], reflections: [], createdAt: now - 2 * day,   lastUsedAt: now - 2 * day,   uses: 1 },
+      { id: 'seed4', name: 'Art',         pace: '25', paceMinutes: 35, note: '', items: [], reflections: [], createdAt: now - 3 * day,   lastUsedAt: now - 3 * day,   uses: 1 },
+      { id: 'seed5', name: 'Math',        pace: '25', paceMinutes: 50, note: '', items: [], reflections: [], createdAt: now - 4 * day,   lastUsedAt: now - 4 * day,   uses: 1 },
+      { id: 'seed6', name: 'French',      pace: '25', paceMinutes: 25, note: '', items: [], reflections: [], createdAt: now - 5 * day,   lastUsedAt: now - 5 * day,   uses: 1 },
+      { id: 'seed7', name: 'History',     pace: '25', paceMinutes: 40, note: '', items: [], reflections: [], createdAt: now - 7 * day,   lastUsedAt: now - 7 * day,   uses: 1 },
+      { id: 'seed8', name: 'English',     pace: '25', paceMinutes: 30, note: '', items: [], reflections: [], createdAt: now - 9 * day,   lastUsedAt: now - 9 * day,   uses: 1 },
+      { id: 'seed9', name: 'Science',     pace: '25', paceMinutes: 55, note: '', items: [], reflections: [], createdAt: now - 11 * day,  lastUsedAt: now - 11 * day,  uses: 1 },
+    ];
+  });
   const [widgetPreset, setWidgetPreset] = useState<WidgetPreset>('selfCheckin');
   const [bgStyle, setBgStyle] = useState<BgStyle>('honey');
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('drifting');
@@ -592,6 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveCurrentRoute,
         loadSavedRoute,
         addReflectionToRoute,
+        clearSavedRoutes: () => setSavedRoutes([]),
         widgetPreset,
         setWidgetPreset,
         bgStyle,
@@ -616,6 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         roomEvents,
         roomPulse,
         pulseRoom,
+        isDark: isDarkBg(bgStyle),
         roomCode,
         roomName,
         joinRoom,

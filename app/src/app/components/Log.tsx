@@ -37,7 +37,7 @@ function toEntry(r: SavedRoute) {
  * Falls back to seed entries when nothing has been saved yet.
  */
 export function Log() {
-  const { savedRoutes, routine, setRoutine, loadSavedRoute } = useAppContext();
+  const { savedRoutes, routine, setRoutine, loadSavedRoute, isDark } = useAppContext();
   const navigate = useNavigate();
 
   const entries = savedRoutes.length > 0 ? savedRoutes.map(toEntry) : FALLBACK;
@@ -58,24 +58,14 @@ export function Log() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex h-full w-full flex-col bg-[#fff8ee]"
+      className="relative flex h-full w-full flex-col"
     >
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-5 pt-1">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Back"
-          className="icon-btn-sm"
-        >
-          <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
-        </button>
+        <span className="h-8 w-[10px] flex-shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            History
-          </span>
-          <h2 className="truncate text-[20px] font-bold leading-tight tracking-tight text-stone-800">
-            What I Did
-          </h2>
+          <span style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="text-[10px] font-semibold uppercase tracking-[0.2em]">History</span>
+          <h2 style={{color:isDark?'rgba(255,255,255,0.88)':'#3a3c38'}} className="truncate text-[20px] font-bold leading-tight tracking-tight">What I Did</h2>
         </div>
         <span className="h-8 w-8" aria-hidden />
       </div>
@@ -89,20 +79,21 @@ export function Log() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 * i }}
-              className="card-glass px-4 py-3.5"
+              className="px-4 py-3.5 rounded-2xl"
+              style={{background:isDark?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.85)',border:`1px solid ${isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.04)'}`,boxShadow:'0 4px 14px rgba(0,0,0,0.05)',backdropFilter:'blur(8px)'}}
             >
               {/* Date + duration */}
               <div className="flex items-baseline justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">
+                <span style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="text-[10px] font-semibold uppercase tracking-[0.18em]">
                   {e.date}
                 </span>
-                <span className="time-num text-[12px] font-semibold text-stone-500">
+                <span style={{color:isDark?'rgba(255,255,255,0.50)':'#78716c'}} className="time-num text-[12px] font-semibold">
                   {e.minutes} min
                 </span>
               </div>
 
               {/* Session title */}
-              <p className="mt-1.5 text-[15px] font-semibold leading-snug text-stone-800">
+              <p style={{color:isDark?'rgba(255,255,255,0.88)':'#3a3c38'}} className="mt-1.5 text-[15px] font-semibold leading-snug">
                 {e.title}
               </p>
 
@@ -120,7 +111,8 @@ export function Log() {
               {/* Add to today */}
               <button
                 onClick={() => addToToday(e.id, e.subjects)}
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-semibold text-stone-500 ring-1 ring-stone-200/80 transition hover:bg-stone-50 active:scale-[0.98]"
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-semibold transition active:scale-[0.98]"
+                style={{color:isDark?'rgba(255,255,255,0.60)':'#78716c',border:`1px solid ${isDark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.10)'}`}}
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={2} />
                 Add to today's plan

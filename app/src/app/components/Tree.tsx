@@ -145,7 +145,7 @@ const SEED_DAYS: { offset: number; minutes: number; sessions: number; subjects: 
 /* ------------------------------------------------------------------ */
 export function Tree() {
   const navigate = useNavigate();
-  const { savedRoutes } = useAppContext();
+  const { savedRoutes, isDark } = useAppContext();
   const [selected, setSelected] = useState<DayCell | null>(null);
   const [pageIdx, setPageIdx] = useState(0);
 
@@ -167,73 +167,36 @@ export function Tree() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex h-full w-full flex-col bg-[#fff8ee]"
+      className="relative flex h-full w-full flex-col"
     >
       {/* HEADER — same shape as RoutineReview / Settings for visual rhyme. */}
       <div className="flex items-center gap-3 px-5 pt-1">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Back"
-          className="icon-btn-sm"
-        >
-          <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
-        </button>
+        <span className="h-8 w-[10px] flex-shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            Garden
-          </span>
-          <h2 className="truncate text-[20px] font-bold leading-tight tracking-tight text-stone-800">
-            Your study garden
-          </h2>
+          <span style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="text-[10px] font-semibold uppercase tracking-[0.2em]">Garden</span>
+          <h2 style={{color:isDark?'rgba(255,255,255,0.88)':'#3a3c38'}} className="truncate text-[20px] font-bold leading-tight tracking-tight">Your study garden</h2>
         </div>
         <span className="h-8 w-8" aria-hidden />
-      </div>
-
-      {/* Micro-stats — restrained, tabular, mono-ish. Streak + blooms
-         stay anchored to all-time counts; the rightmost slot doubles as
-         a Today shortcut when the user has swiped to an older window. */}
-      <div className="mt-1 flex items-center gap-3 px-5 text-[11px] font-medium text-stone-400">
-        <span className="time-num">
-          {streak > 0 ? `${streak}-day streak` : 'no streak yet'}
-        </span>
-        <span className="text-stone-300" aria-hidden>·</span>
-        <span className="time-num">
-          {totalSessions} {totalSessions === 1 ? 'bloom' : 'blooms'}
-        </span>
-        <span className="text-stone-300" aria-hidden>·</span>
-        {pageIdx === 0 ? (
-          <span className="time-num">{rangeLabel}</span>
-        ) : (
-          <button
-            onClick={() => setPageIdx(0)}
-            className="time-num soft-link inline-flex items-center gap-1 text-stone-500"
-            aria-label="Jump back to today"
-          >
-            <span>{rangeLabel}</span>
-            <span aria-hidden className="text-stone-300">›</span>
-            <span className="uppercase tracking-[0.18em] text-[10px] font-semibold text-stone-600">
-              Today
-            </span>
-          </button>
-        )}
       </div>
 
       {/* GARDEN STAGE — sky + hills sit in a static SVG; the calendar
          floor lives in a draggable layer that swipes left/right to
          reveal older 14-day windows. */}
       <div className="relative mt-4 flex-1 overflow-hidden">
-        <div className="garden-sky absolute inset-0" />
+        {!isDark && <div className="garden-sky absolute inset-0" />}
 
-        {/* Static back layer: sky decor + hills, always in place. */}
-        <svg
-          viewBox={`0 0 ${SCENE_W} ${SCENE_H}`}
-          preserveAspectRatio="xMidYMax meet"
-          className="pointer-events-none absolute inset-0 h-full w-full"
-          aria-hidden
-        >
-          <SkyDecor />
-          <DistantHills />
-        </svg>
+        {/* Static back layer: sky decor + hills, light mode only. */}
+        {!isDark && (
+          <svg
+            viewBox={`0 0 ${SCENE_W} ${SCENE_H}`}
+            preserveAspectRatio="xMidYMax meet"
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            aria-hidden
+          >
+            <SkyDecor />
+            <DistantHills />
+          </svg>
+        )}
 
         {/* Slidable foreground: the calendar floor. The motion.div hosts
            the framer-motion horizontal drag; dragConstraints snap the
@@ -259,16 +222,69 @@ export function Tree() {
             preserveAspectRatio="xMidYMax meet"
             className="absolute inset-0 h-full w-full"
             aria-label={`Garden calendar, ${rangeLabel}.`}
+            style={{ color: isDark ? 'rgba(255,255,255,0.75)' : '#3a3c38' }}
           >
             <SceneDefs />
+            {!isDark && <SkyDecor />}
+            {!isDark && <DistantHills />}
+            {isDark && <DarkStars />}
             <CalendarFloor
               cells={cells}
               selectedKey={selected?.key ?? null}
               onSelect={setSelected}
               pageIdx={pageIdx}
+              isDark={isDark}
             />
           </svg>
         </Motion.div>
+
+        {/* Micro-stats + drag hint */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between px-5 pb-8">
+          {/* Left: drag-for-older hint — fades out after first swipe */}
+          <div
+            className="flex items-center gap-1.5 text-[13px] font-semibold transition-opacity duration-500"
+            style={{
+              color: isDark ? 'rgba(255,255,255,0.32)' : 'rgba(58,60,56,0.30)',
+              opacity: pageIdx === 0 ? 1 : 0,
+            }}
+          >
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden>
+              <path d="M10 2 L4 6 L10 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="4" y1="6" x2="14" y2="6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.4"/>
+            </svg>
+            <span>drag for older</span>
+          </div>
+
+          {/* Right: streak · blooms · range */}
+          <div style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-2 text-[13px] font-medium">
+              <span className="time-num">
+                {streak > 0 ? `${streak}-day streak` : 'no streak yet'}
+              </span>
+              <span className="opacity-40" aria-hidden>·</span>
+              <span className="time-num">
+                <span style={{color: isDark ? '#a78bfa' : '#7c3aed', fontWeight: 700}}>{totalSessions}</span>
+                {' '}{totalSessions === 1 ? 'bloom' : 'blooms'}
+              </span>
+            </div>
+            {pageIdx !== 0 ? (
+              <button
+                onClick={() => setPageIdx(0)}
+                className="pointer-events-auto time-num soft-link inline-flex items-center gap-1 text-[12px] font-semibold"
+                style={{color:isDark?'rgba(255,255,255,0.55)':'#78716c'}}
+                aria-label="Jump back to today"
+              >
+                <span>{rangeLabel}</span>
+                <span aria-hidden className="opacity-50">›</span>
+                <span className="uppercase tracking-[0.16em]">Today</span>
+              </button>
+            ) : (
+              <span className="time-num text-[12px]" style={{color:isDark?'rgba(255,255,255,0.28)':'#a8a29e'}}>
+                {rangeLabel}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* DETAIL CARD — slides up from above the bottom nav when a plot is tapped. */}
@@ -290,35 +306,38 @@ const SCENE_H   = 600;
 // iso projection, but the per-row horizontal shift (ROW_RUN) is small
 // so the rows stack mostly vertically — the overall lattice reads as
 // a tall calendar climbing into the iso distance.
-const COLS      = 7;                 // one column per day chronologically
-const ROWS      = 6;                 // 6 weeks per page (= DAYS_BACK / 7)
-const TILE_W    = 34;                // tile width along the iso x-axis (viewBox units)
-const ROW_RUN   = 10;                // small per-row x shift — keeps the grid tall, not wide
-const ROW_RISE  = 46;                // generous per-row y rise — gives plants headroom
+const COLS        = 7;
+const ROWS        = 6;
+const TILE_W_FRONT = 52;   // tile width at front row (row 0)
+const TILE_W_BACK  = 18;   // tile width at back row (row ROWS)
+const ROW_RISE     = 28;   // vertical step per depth row
+const FLOOR_DEPTH_Y = ROWS * ROW_RISE;
 
-const FLOOR_W   = COLS * TILE_W;     // floor width along the front edge
-const FLOOR_DEPTH_X = ROWS * ROW_RUN; // horizontal extent of the iso depth
-const FLOOR_DEPTH_Y = ROWS * ROW_RISE; // vertical extent of the iso depth
+/* Tile width at a given depth row — linear perspective convergence. */
+function rowTileW(row: number): number {
+  const t = row / ROWS;
+  return TILE_W_FRONT + (TILE_W_BACK - TILE_W_FRONT) * t;
+}
 
-// Center the parallelogram's visual span horizontally, then anchor it so
-// the whole tall lattice sits centered in the scene's vertical axis.
-const FLOOR_X0  = (SCENE_W - FLOOR_W - FLOOR_DEPTH_X) / 2;
-const FLOOR_Y0  = SCENE_H / 2 + FLOOR_DEPTH_Y / 2;
+/* x-coordinate of column edge `col` at depth `row`.
+ * Each row steps RIGHT by a fixed SHIFT_STEP — constant linear shift,
+ * no curvature. Front row (row=0) sits at the left margin; back rows
+ * step steadily rightward at the same rate. */
+const SHIFT_STEP = 24;   // px rightward per depth row
+const FRONT_X0   = 10;   // left margin at row=0
 
-/* Map an idx in `cells` (0 = oldest, DAYS_BACK - 1 = newest in window)
- * to a (col, row) on the calendar floor.
- *
- *   row 0          (front, closest)   = the current week
- *   row 1          (one step back)    = the previous week
- *   row ROWS - 1   (back, farthest)   = the oldest week in the window
- *
- *   col 0          = leftmost day in the row (oldest)
- *   col COLS - 1   = rightmost day in the row (newest)
- *
- * So idx = DAYS_BACK - 1 (today on page 0) lands at (col=COLS-1, row=0)
- * — the front-right corner of the lattice. idx = 0 (the oldest day in
- * the window) lands at (col=0, row=ROWS-1) — the back-left corner.
- */
+function colX(col: number, row: number): number {
+  const tw = rowTileW(row);
+  const x0 = FRONT_X0 + row * SHIFT_STEP;
+  return x0 + col * tw;
+}
+
+/* Y-coordinate at depth `row`. */
+const FLOOR_Y0 = SCENE_H / 2 + FLOOR_DEPTH_Y / 2;
+function rowY(row: number): number {
+  return FLOOR_Y0 - row * ROW_RISE;
+}
+
 function tileForIdx(idx: number): { col: number; row: number } {
   return {
     col: idx % COLS,
@@ -326,27 +345,22 @@ function tileForIdx(idx: number): { col: number; row: number } {
   };
 }
 
-/* Iso-project a floor-local (x, depth) into the scene's viewBox coords. */
-function isoXY(x: number, depth: number): { x: number; y: number } {
-  return {
-    x: FLOOR_X0 + x + depth * ROW_RUN,
-    y: FLOOR_Y0 - depth * ROW_RISE,
-  };
-}
-
-/* Four corners of a tile (front-left, front-right, back-right, back-left)
- * in scene viewBox coords. */
+/* Four corners of a tile (front-left, front-right, back-right, back-left). */
 function tileCorners(col: number, row: number) {
-  const fl = isoXY(col * TILE_W,       row);
-  const fr = isoXY((col + 1) * TILE_W, row);
-  const br = isoXY((col + 1) * TILE_W, row + 1);
-  const bl = isoXY(col * TILE_W,       row + 1);
+  const fl = { x: colX(col,     row),     y: rowY(row)     };
+  const fr = { x: colX(col + 1, row),     y: rowY(row)     };
+  const br = { x: colX(col + 1, row + 1), y: rowY(row + 1) };
+  const bl = { x: colX(col,     row + 1), y: rowY(row + 1) };
   return { fl, fr, br, bl };
 }
 
 /* The visual center of a tile's top face — where plants and labels sit. */
 function tileCenter(col: number, row: number) {
-  return isoXY((col + 0.5) * TILE_W, row + 0.5);
+  const midRow = row + 0.5;
+  return {
+    x: (colX(col, midRow) + colX(col + 1, midRow)) / 2,
+    y: rowY(midRow),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,11 +388,13 @@ function CalendarFloor({
   selectedKey,
   onSelect,
   pageIdx,
+  isDark = false,
 }: {
   cells: DayCell[];
   selectedKey: string | null;
   onSelect: (cell: DayCell) => void;
   pageIdx: number;
+  isDark?: boolean;
 }) {
   // Render cells in z-order: back row first so front-row sprites paint
   // over the back row where they overlap.
@@ -403,6 +419,13 @@ function CalendarFloor({
           `L ${corners.br.x} ${corners.br.y} ` +
           `L ${corners.bl.x} ${corners.bl.y} Z`;
 
+        /* Exponential scale: small tiles stay small, front-right blows up.
+           t=0 → oldest/back-left, t=1 → today/front-right */
+        const rowT = (ROWS - 1 - row) / (ROWS - 1);
+        const colT = col / (COLS - 1);
+        const t = rowT * 0.65 + colT * 0.35;
+        const tileScale = 0.55 + Math.pow(t, 2.4) * 1.55;
+
         return (
           <g
             key={cell.key}
@@ -411,9 +434,9 @@ function CalendarFloor({
             role="button"
             aria-label={`${fullDate(cell.date)}, ${cell.minutes} minutes studied`}
           >
-            <PlantOnTile cell={cell} cx={center.x} cy={center.y} />
+            <PlantOnTile cell={cell} cx={center.x} cy={center.y} scale={tileScale} />
 
-            <TileLabel cell={cell} cx={center.x} cy={center.y} isSelected={isSelected} />
+            <TileLabel cell={cell} cx={center.x} cy={center.y} isSelected={isSelected} isDark={isDark} scale={tileScale} />
 
             {/* Invisible tap target — parallelogram covers the whole
                tile so the user can tap anywhere in it, not just the
@@ -423,54 +446,10 @@ function CalendarFloor({
         );
       })}
 
-      {/* Page wayfinding — a discreet "← drag for older" mark, only
-         on page 0. Tucked just left of the leftmost back-row tile so
-         it reads as a quiet hint, not a button. */}
-      {pageIdx === 0 && <SwipeHint />}
     </g>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* SwipeHint — a discreet "← drag" chevron tucked under the front-left */
-/* corner of the floor. Reads as a quiet wayfinding mark, not a button.*/
-/* ------------------------------------------------------------------ */
-function SwipeHint() {
-  const a = isoXY(0, 0);
-  const x = a.x - 10;
-  const y = a.y + 14;
-  return (
-    <g opacity={0.45} aria-hidden style={{ pointerEvents: 'none' }}>
-      <path
-        d={`M ${x + 4} ${y - 3} L ${x} ${y} L ${x + 4} ${y + 3}`}
-        fill="none"
-        stroke="#3a3c38"
-        strokeWidth={0.9}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d={`M ${x + 9} ${y - 3} L ${x + 5} ${y} L ${x + 9} ${y + 3}`}
-        fill="none"
-        stroke="#3a3c38"
-        strokeWidth={0.9}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <text
-        x={x + 14}
-        y={y + 2.4}
-        fontSize="5.6"
-        fontWeight={600}
-        letterSpacing="0.6"
-        fill="#3a3c38"
-        style={{ userSelect: 'none' }}
-      >
-        DRAG FOR OLDER
-      </text>
-    </g>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* TileLabel — the day-of-month number printed at each tile's iso      */
@@ -484,57 +463,27 @@ function SwipeHint() {
 /*   • default  — semibold, soft stone                                  */
 /* ------------------------------------------------------------------ */
 function TileLabel({
-  cell,
-  cx,
-  cy,
-  isSelected,
+  cell, cx, cy, isSelected, isDark = false, scale = 1,
 }: {
-  cell: DayCell;
-  cx: number;
-  cy: number;
-  isSelected: boolean;
+  cell: DayCell; cx: number; cy: number; isSelected: boolean; isDark?: boolean; scale?: number;
 }) {
+  const ink = isDark ? 'rgba(255,255,255,0.82)' : '#3a3c38';
+  const numSize  = (9  * scale).toFixed(1);
+  const todaySize = (6.5 * scale).toFixed(1);
   if (cell.isToday) {
     return (
       <g style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        <text
-          x={cx}
-          y={cy + 4}
-          textAnchor="middle"
-          fontSize="7"
-          fontWeight={800}
-          letterSpacing="0.6"
-          fill="#3a3c38"
-          opacity={1}
-        >
-          TODAY
-        </text>
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize={todaySize} fontWeight={800} letterSpacing="0.6" fill={ink} opacity={1}>TODAY</text>
       </g>
     );
   }
   return (
     <g style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      <text
-        x={cx}
-        y={cy + 4}
-        textAnchor="middle"
-        fontSize="9"
-        fontWeight={isSelected ? 800 : 600}
-        fill="#3a3c38"
-        opacity={isSelected ? 0.95 : 0.55}
-      >
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={numSize} fontWeight={isSelected ? 800 : 600} fill={ink} opacity={isSelected ? 0.92 : 0.45 + scale * 0.25}>
         {cell.date.getDate()}
       </text>
       {isSelected && (
-        <line
-          x1={cx - 4}
-          y1={cy + 7}
-          x2={cx + 4}
-          y2={cy + 7}
-          stroke="#3a3c38"
-          strokeWidth={0.8}
-          strokeLinecap="round"
-        />
+        <line x1={cx - 4 * scale} y1={cy + 7} x2={cx + 4 * scale} y2={cy + 7} stroke={ink} strokeWidth={0.8} strokeLinecap="round" />
       )}
     </g>
   );
@@ -546,28 +495,32 @@ function TileLabel({
 /* obscuring the back row.                                              */
 /* ------------------------------------------------------------------ */
 const PLANT_CSS_SIZE: Record<PlantKind, { w: number; h: number }> = {
-  empty:   { w: 16, h:  4 },
-  sprout:  { w: 22, h: 18 },
-  bud:     { w: 22, h: 26 },
-  bloom:   { w: 24, h: 32 },
-  bouquet: { w: 26, h: 38 },
-  tree:    { w: 30, h: 44 },
+  empty:   { w: 22, h:  5 },
+  sprout:  { w: 32, h: 22 },
+  bud:     { w: 34, h: 28 },
+  bloom:   { w: 38, h: 34 },
+  bouquet: { w: 42, h: 38 },
+  tree:    { w: 46, h: 42 },
 };
 
 /** How many viewBox units to lift a plant above the tile center so it
  *  floats clearly above the date-number rather than overlapping it. */
 const PLANT_LIFT = 12;
 
-function PlantOnTile({ cell, cx, cy }: { cell: DayCell; cx: number; cy: number }) {
+function PlantOnTile({ cell, cx, cy, scale = 1 }: {
+  cell: DayCell; cx: number; cy: number; scale?: number;
+}) {
   const tone = TONE[cell.tone];
 
   // Empty days get the seed mound; today's empty plot gets the dashed
   // "ready to grow" ring so the user reads it as inviting, not absent.
   if (cell.kind === 'empty' && !cell.isToday) {
-    // Seed mound — just a tiny dot, sits close above the number so it
-    // reads as "nothing here yet" without floating too far up.
     return (
-      <ellipse cx={cx} cy={cy - 6} rx={2} ry={0.8} fill="#5a3f28" opacity={0.35} />
+      <ellipse
+        cx={cx} cy={cy - 6}
+        rx={2 * scale} ry={0.8 * scale}
+        fill="#5a3f28" opacity={0.35 * scale + 0.1}
+      />
     );
   }
   if (cell.kind === 'empty' && cell.isToday) {
@@ -587,12 +540,14 @@ function PlantOnTile({ cell, cx, cy }: { cell: DayCell; cx: number; cy: number }
   }
 
   const { w, h } = PLANT_CSS_SIZE[cell.kind];
+  const sw = w * scale;
+  const sh = h * scale;
   return (
     <svg
-      x={cx - w / 2}
-      y={cy - h - PLANT_LIFT}
-      width={w}
-      height={h}
+      x={cx - sw / 2}
+      y={cy - sh - PLANT_LIFT * scale}
+      width={sw}
+      height={sh}
       viewBox={`0 0 ${PLANT_VB.w} ${PLANT_VB.h}`}
       preserveAspectRatio="xMidYMax meet"
       style={{ overflow: 'visible' }}
@@ -603,6 +558,24 @@ function PlantOnTile({ cell, cx, cy }: { cell: DayCell; cx: number; cy: number }
       {cell.kind === 'bouquet' && <PlantBouquet c={tone} />}
       {cell.kind === 'tree'    && <PlantTree c={tone} />}
     </svg>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/* DarkStars — a handful of quiet star dots for dark-mode garden sky.  */
+/* ------------------------------------------------------------------ */
+function DarkStars() {
+  const stars = [
+    [60,40],[120,25],[200,55],[280,30],[340,50],[100,80],[240,70],[310,85],
+    [170,35],[380,60],[40,90],[150,105],[290,100],[360,20],[230,15],
+  ] as const;
+  return (
+    <g aria-hidden>
+      {stars.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={0.9} fill="rgba(255,255,255,0.55)" />
+      ))}
+    </g>
   );
 }
 

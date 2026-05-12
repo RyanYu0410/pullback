@@ -167,12 +167,16 @@ interface RoomSceneProps {
   hideMe?: boolean;
   onWaveFriend?: (id: string) => void;
   onSitAt?: (zoneId: ZoneId, slot: { x: number; y: number }) => void;
+  /** Called when the user taps the 🔔 bell seat — go to plan/home. */
+  onPullBell?: () => void;
+  /** Called when the user taps a friend's avatar — show their profile. */
+  onProfileFriend?: (friend: Friend) => void;
   className?: string;
 }
 
 export function RoomScene(props: RoomSceneProps) {
   const { compact = false } = props;
-  const { mySelf, friends, roomPulse } = useAppContext();
+  const { mySelf, friends, roomPulse, isDark } = useAppContext();
 
   /* Shared pulse listener — both layouts react. */
   const [reactingPulse, setReactingPulse] = useState<{
@@ -206,8 +210,11 @@ export function RoomScene(props: RoomSceneProps) {
       hideMe={props.hideMe}
       onWaveFriend={props.onWaveFriend}
       onSitAt={props.onSitAt}
+      onPullBell={props.onPullBell}
+      onProfileFriend={props.onProfileFriend}
       reactingPulse={reactingPulse}
       className={props.className}
+      isDark={isDark}
     />
   );
 }
@@ -233,7 +240,17 @@ interface SceneSubProps {
 
 type FullSceneProps = SceneSubProps & {
   onSitAt?: (zoneId: ZoneId, slot: { x: number; y: number }) => void;
+  onPullBell?: () => void;
+  onProfileFriend?: (friend: Friend) => void;
+  isDark?: boolean;
 };
+
+/** A single item in the drum-picker: a built-in zone, a user-created
+ *  custom spot, or the trailing "Add" button row. */
+type PickerItem =
+  | { kind: 'zone';   id: ZoneId }
+  | { kind: 'custom'; label: string; idx: number }
+  | { kind: 'add' };
 
 function FullScene({
   mySelf,
@@ -241,9 +258,29 @@ function FullScene({
   hideMe,
   onWaveFriend,
   onSitAt,
+  onPullBell,
+  onProfileFriend,
   reactingPulse,
   className,
+  isDark = false,
 }: FullSceneProps) {
+  const ink     = isDark ? 'rgba(255,255,255,0.80)' : 'rgba(58,60,56,1)';
+  const inkSub  = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(58,60,56,0.50)';
+  const selBg   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(58,60,56,0.045)';
+  const selBorder = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(58,60,56,0.13)';
+
+  /* ── custom-zone state ── */
+  const [extraZoneLabels, setExtraZoneLabels] = useState<string[]>([]);
+  const [addDraft, setAddDraft] = useState('');
+  const [isAddingZone, setIsAddingZone] = useState(false);
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  const pickerItems: PickerItem[] = [
+    ...ZONE_ORDER.map(id => ({ kind: 'zone' as const, id })),
+    ...extraZoneLabels.map((label, idx) => ({ kind: 'custom' as const, label, idx })),
+    { kind: 'add' as const },
+  ];
+
   /* Where is the user, in viewBox coords? */
   const userSeatPx = mySelf.status === 'offline'
     ? null
@@ -313,11 +350,26 @@ function FullScene({
     return () => ro.disconnect();
   }, []);
 
-  /* The list has paddingTop = centerY, so row 0's centre is at y=centerY
-   * when the list's own y-translate is 0. To put row `idx` at the container
-   * centre we simply shift the list up by idx rows. */
+  /* Focus the add-zone input whenever it becomes visible */
+  useEffect(() => {
+    if (isAddingZone) {
+      const t = setTimeout(() => addInputRef.current?.focus(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [isAddingZone]);
+
   const centerY  = (containerH - PICKER_ROW_H) / 2;
   const getListY = (idx: number) => -idx * PICKER_ROW_H;
+
+  const confirmAddZone = () => {
+    const name = addDraft.trim();
+    if (!name) { setIsAddingZone(false); setAddDraft(''); return; }
+    setExtraZoneLabels(prev => [...prev, name]);
+    setAddDraft('');
+    setIsAddingZone(false);
+    /* Select the newly added custom zone */
+    setActiveIdx(pickerItems.length - 1); // length before the new item is appended → points to new zone
+  };
 
   return (
     <div
@@ -337,15 +389,13 @@ function FullScene({
           height: PICKER_ROW_H,
           zIndex: 10,
           borderRadius: 22,
-          background: 'rgba(58,60,56,0.045)',
-          borderTop:    '1px solid rgba(58,60,56,0.13)',
-          borderBottom: '1px solid rgba(58,60,56,0.13)',
+          background: selBg,
+          borderTop:    `1px solid ${selBorder}`,
+          borderBottom: `1px solid ${selBorder}`,
         }}
       />
 
       {/* ── Draggable zone list ── */}
-      {/* Spacer padding = centerY so both the first and last zone can
-          reach the centre of the selection window when selected. */}
       <motion.div
         drag="y"
         dragConstraints={{ top: -9999, bottom: 9999 }}
@@ -359,7 +409,7 @@ function FullScene({
             info.offset.y < -threshold ? 1 :
             info.offset.y >  threshold ? -1 : 0;
           setActiveIdx(prev =>
-            Math.max(0, Math.min(ZONE_ORDER.length - 1, prev + step)),
+            Math.max(0, Math.min(pickerItems.length - 1, prev + step)),
           );
         }}
         style={{
@@ -368,14 +418,181 @@ function FullScene({
           paddingTop: centerY, paddingBottom: centerY,
         }}
       >
-        {ZONE_ORDER.map((zoneId, i) => {
-          const zone        = ZONES[zoneId];
-          const isActive    = i === activeIdx;
-          const dist        = Math.abs(i - activeIdx);
-          const rowOpacity  = isActive ? 1 : Math.max(0.22, 0.55 - dist * 0.18);
-          const rowScale    = isActive ? 1 : Math.max(0.78, 0.93 - dist * 0.06);
+        {pickerItems.map((item, i) => {
+          const isActive   = i === activeIdx;
+          const dist       = Math.abs(i - activeIdx);
+          const rowOpacity = isActive ? 1 : Math.max(0.22, 0.55 - dist * 0.18);
+          const rowScale   = isActive ? 1 : Math.max(0.78, 0.93 - dist * 0.06);
 
-          /* Friends whose slot falls in this zone */
+          /* ── "Add spot" row ── */
+          if (item.kind === 'add') {
+            return (
+              <div
+                key="__add"
+                style={{
+                  height: PICKER_ROW_H,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 18,
+                  opacity: rowOpacity,
+                  transform: `scale(${rowScale})`,
+                  transition: 'opacity 0.22s, transform 0.22s',
+                }}
+                onClick={() => { if (!isActive) setActiveIdx(i); }}
+              >
+                {isActive && isAddingZone ? (
+                  /* Inline name-entry when the add row is active */
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 220 }}>
+                    <input
+                      ref={addInputRef}
+                      value={addDraft}
+                      onChange={e => setAddDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') confirmAddZone();
+                        if (e.key === 'Escape') { setIsAddingZone(false); setAddDraft(''); }
+                      }}
+                      placeholder="Name your spot…"
+                      maxLength={24}
+                      style={{
+                        flex: 1, background: 'none', border: 'none', outline: 'none',
+                        fontSize: 15, fontWeight: 600,
+                        color: ink, caretColor: isDark ? '#5eead4' : '#3a3c38',
+                        borderBottom: `1.5px solid ${isDark ? 'rgba(255,255,255,0.30)' : 'rgba(58,60,56,0.30)'}`,
+                        paddingBottom: 3,
+                      }}
+                    />
+                    <button
+                      onMouseDown={e => { e.preventDefault(); confirmAddZone(); }}
+                      style={{
+                        background: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(58,60,56,0.10)',
+                        border: 'none', borderRadius: 10, padding: '4px 10px',
+                        fontSize: 11, fontWeight: 700, color: ink, cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                ) : (
+                  /* Default "Add a spot" affordance */
+                  <button
+                    onClick={e => { e.stopPropagation(); if (isActive) setIsAddingZone(true); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: 'none', border: 'none', cursor: isActive ? 'pointer' : 'default',
+                      padding: 0,
+                    }}
+                  >
+                    {/* Plus icon */}
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 16,
+                      border: `1.5px dashed ${isDark ? 'rgba(255,255,255,0.25)' : 'rgba(58,60,56,0.22)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <line x1="9" y1="3" x2="9" y2="15" stroke={inkSub} strokeWidth="1.8" strokeLinecap="round" />
+                        <line x1="3" y1="9" x2="15" y2="9" stroke={inkSub} strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <span style={{
+                      fontSize: 13, fontWeight: 600, color: inkSub,
+                      letterSpacing: '0.02em', whiteSpace: 'nowrap',
+                    }}>
+                      Add a spot
+                    </span>
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          /* ── Custom zone row ── */
+          if (item.kind === 'custom') {
+            const fallbackSlot = { x: ROW_BASE_X, y: ROW_BASE_Y };
+            return (
+              <div
+                key={`custom_${item.idx}`}
+                onClick={() => { if (!isActive) setActiveIdx(i); }}
+                style={{
+                  height: PICKER_ROW_H,
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 14,
+                  opacity: rowOpacity,
+                  transform: `scale(${rowScale})`,
+                  transition: 'opacity 0.22s, transform 0.22s',
+                }}
+              >
+                {/* ── Delete button (minus) — always 20px from left edge ── */}
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    setExtraZoneLabels(prev => prev.filter((_, fi) => fi !== item.idx));
+                    setActiveIdx(prev => Math.max(0, Math.min(prev, pickerItems.length - 3)));
+                  }}
+                  aria-label={`Remove ${item.label}`}
+                  style={{
+                    position: 'absolute', left: 45,
+                    width: 20, height: 20,
+                    background: 'none', border: 'none', padding: 0,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <svg width="12" height="2" viewBox="0 0 12 2">
+                    <line x1="1" y1="1" x2="11" y2="1"
+                      stroke={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'}
+                      strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+
+                {/* Left column: icon + label */}
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 6, minWidth: 60 }}>
+                  <svg width="48" height="48" viewBox="-20 -20 40 40" overflow="visible">
+                    <g style={{ pointerEvents: 'none' }}>
+                      <circle cx="0" cy="-2" r="11" fill={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(58,60,56,0.08)'} />
+                      <text x="0" y="2" textAnchor="middle" fontSize="12" fontWeight={700} fill={inkSub}>✦</text>
+                    </g>
+                  </svg>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, letterSpacing: '0.9px',
+                    color: ink, textTransform: 'uppercase',
+                    opacity: isActive ? 0.85 : 0.45, whiteSpace: 'nowrap', maxWidth: 80,
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {item.label}
+                  </span>
+                </div>
+                {/* Sit button */}
+                <div style={{ display:'flex', alignItems:'flex-end', gap: 5 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); onSitAtRef.current?.('focus', fallbackSlot); }}
+                    aria-label={`Sit at ${item.label}`}
+                    style={{
+                      width: 40, height: 54, borderRadius: 18,
+                      background: 'none',
+                      border: `1.3px dashed ${isDark ? 'rgba(255,255,255,0.28)' : 'rgba(58,60,56,0.32)'}`,
+                      cursor: 'pointer', display:'flex',
+                      alignItems:'center', justifyContent:'center',
+                      fontSize: 10, fontWeight: 700,
+                      color: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(58,60,56,0.42)',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    sit
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          /* ── Built-in zone row ── */
+          const zoneId     = item.id;
+          const zone       = ZONES[zoneId];
+
           const zoneFriends = friends.filter(f => {
             const slot = friendSlot.get(f.id);
             return slot && zone.slots.some(s => slotsEqual(s, slot));
@@ -396,24 +613,23 @@ function FullScene({
                 transform: `scale(${rowScale})`,
                 transition: 'opacity 0.22s, transform 0.22s',
               }}
-              /* Tapping a non-active row selects it */
               onClick={() => { if (!isActive) setActiveIdx(i); }}
             >
               {/* ── Left column: glyph + label ── */}
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 5, minWidth: 52 }}>
-                <svg width="40" height="40" viewBox="-20 -20 40 40" overflow="visible">
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 6, minWidth: 60 }}>
+                <svg width="48" height="48" viewBox="-20 -20 40 40" overflow="visible">
                   <ZoneIcon id={zoneId} cx={0} cy={0} opacity={1} />
                 </svg>
                 <span style={{
-                  fontSize: 8, fontWeight: 700, letterSpacing: '1.3px',
-                  color: '#3a3c38', textTransform: 'uppercase',
-                  opacity: 0.62, whiteSpace: 'nowrap',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.9px',
+                  color: ink, textTransform: 'uppercase',
+                  opacity: isActive ? 0.85 : 0.45, whiteSpace: 'nowrap',
                 }}>
                   {zone.label}
                 </span>
               </div>
 
-              {/* ── Right column: friends + bell-seat + empty seats ── */}
+              {/* ── Right column: friends + empty seats ── */}
               <div style={{ display:'flex', alignItems:'flex-end', gap: 5 }}>
                 {zoneFriends.map(f => {
                   const isActor    = reactingPulse?.fromId === f.id;
@@ -423,6 +639,7 @@ function FullScene({
                       key={f.id}
                       friend={f}
                       onWave={onWaveFriend ? () => onWaveFriend(f.id) : undefined}
+                      onProfile={() => onProfileFriend?.(f)}
                       reaction={
                         isActor
                           ? reactingPulse!.kind === 'pull'   ? 'bow'
@@ -436,57 +653,47 @@ function FullScene({
                   );
                 })}
 
-                {/* You — shown in your current zone */}
                 {isMeHere && !hideMe && (
-                  <InlineCharacter
-                    key="me"
-                    friend={mySelf}
-                    onWave={undefined}
-                    reaction="idle"
-                  />
+                  <InlineCharacter key="me" friend={mySelf} onWave={undefined} reaction="idle" />
                 )}
 
-                {/* Focus-table centre stool = bell-pull shortcut */}
-                {zoneId === 'focus' && (
-                  <button
-                    onClick={e => { e.stopPropagation(); onSitAtRef.current?.('focus', ZONES.focus.slots[2]); }}
-                    aria-label="Pull the bell to sit at the focus table"
-                    style={{
-                      width: 36, height: 50, borderRadius: 18,
-                      background: 'rgba(58,60,56,0.07)',
-                      border: '1px solid rgba(58,60,56,0.13)',
-                      cursor: 'pointer', display:'flex',
-                      alignItems:'center', justifyContent:'center', fontSize: 20,
-                    }}
-                  >
-                    🔔
-                  </button>
-                )}
-
-                {/* Empty seat rings */}
-                {emptyInZone.map(({ slot }, ei) => (
-                  <button
-                    key={ei}
-                    onClick={e => { e.stopPropagation(); onSitAtRef.current?.(zoneId, slot); }}
-                    aria-label={`Sit at ${zone.label}`}
-                    style={{
-                      width: 36, height: 50, borderRadius: 18,
-                      background: 'none',
-                      border: '1.3px dashed rgba(58,60,56,0.32)',
-                      cursor: 'pointer', display:'flex',
-                      alignItems:'center', justifyContent:'center',
-                      fontSize: 8, fontWeight: 700,
-                      color: 'rgba(58,60,56,0.42)', letterSpacing: '0.04em',
-                    }}
-                  >
-                    sit
-                  </button>
-                ))}
+                {/* Empty seat rings — always show at least one */}
+                {(() => {
+                  const seats = emptyInZone.length > 0
+                    ? emptyInZone
+                    : [{
+                        zone,
+                        slot: {
+                          x: zone.slots[zone.slots.length - 1].x + 40,
+                          y: zone.slots[zone.slots.length - 1].y,
+                        },
+                      }];
+                  return seats.map(({ slot }, ei) => (
+                    <button
+                      key={ei}
+                      onClick={e => { e.stopPropagation(); onSitAtRef.current?.(zoneId, slot); }}
+                      aria-label={`Sit at ${zone.label}`}
+                      style={{
+                        width: 40, height: 54, borderRadius: 18,
+                        background: 'none',
+                        border: `1.3px dashed ${isDark ? 'rgba(255,255,255,0.28)' : 'rgba(58,60,56,0.32)'}`,
+                        cursor: 'pointer', display:'flex',
+                        alignItems:'center', justifyContent:'center',
+                        fontSize: 10, fontWeight: 700,
+                        color: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(58,60,56,0.42)',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      sit
+                    </button>
+                  ));
+                })()}
               </div>
             </div>
           );
         })}
       </motion.div>
+
     </div>
   );
 }
@@ -551,6 +758,212 @@ function CompactScene({
 }
 
 /* --------------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
+/* FriendProfileSheet — bottom sheet that appears when you tap a friend  */
+/* --------------------------------------------------------------------- */
+
+import type { ContactPlatform } from '../context/AppContext';
+
+const PLATFORM_ICON: Record<ContactPlatform, string> = {
+  instagram: '📸',
+  discord:   '🎮',
+  snapchat:  '👻',
+  phone:     '📱',
+};
+
+const PLATFORM_URL: Record<ContactPlatform, (handle: string) => string> = {
+  instagram: h => `https://instagram.com/${h.replace(/^@/, '')}`,
+  discord:   h => `https://discord.com/users/${h}`,
+  snapchat:  h => `https://snapchat.com/add/${h.replace(/^@/, '')}`,
+  phone:     h => `tel:${h.replace(/\s/g, '')}`,
+};
+
+function openContact(contact: { platform: ContactPlatform; handle: string }) {
+  window.open(PLATFORM_URL[contact.platform](contact.handle), '_blank', 'noopener');
+}
+
+const STATUS_LABEL_FULL: Record<FriendStatus, string> = {
+  focusing:   'In a focus session',
+  on_break:   'On a short break',
+  finished:   'Done for today',
+  needs_help: 'Looking for help',
+  offline:    'Offline',
+};
+
+const STATUS_COLOR: Record<FriendStatus, string> = {
+  focusing:   '#34d399',
+  on_break:   '#fbbf24',
+  finished:   '#a78bfa',
+  needs_help: '#f87171',
+  offline:    '#94a3b8',
+};
+
+export function FriendProfileSheet({
+  friend,
+  isDark,
+  onWave,
+  onClose,
+}: {
+  friend: Friend;
+  isDark: boolean;
+  onWave: () => void;
+  onClose: () => void;
+}) {
+  const [waved, setWaved] = useState(false);
+
+  const sheetBg  = isDark ? 'rgba(28,28,32,0.97)' : 'rgba(255,252,245,0.98)';
+  const textMain = isDark ? 'rgba(255,255,255,0.88)' : '#1c1c1e';
+  const textSub  = isDark ? 'rgba(255,255,255,0.42)' : 'rgba(58,60,56,0.55)';
+  const divider  = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(58,60,56,0.08)';
+  const chipBg   = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(58,60,56,0.06)';
+  const statusColor = STATUS_COLOR[friend.status];
+
+  const breakIn = friend.minutesLeft ?? null;
+
+  return (
+    /* Backdrop */
+    <div
+      onClick={onClose}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 60,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+    >
+      {/* Sheet */}
+      <motion.div
+        onClick={e => e.stopPropagation()}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+        style={{
+          width: '100%',
+          borderRadius: '28px 28px 0 0',
+          background: sheetBg,
+          backdropFilter: 'blur(18px)',
+          padding: '0 0 32px',
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
+        }}
+      >
+        {/* Drag handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop: 12, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)' }} />
+        </div>
+
+        {/* Avatar + name */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', paddingTop: 20, gap: 8 }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: PALETTE[friend.id] ?? '#d6c8ff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 34, boxShadow: `0 0 0 3px ${statusColor}44`,
+          }}>
+            {friend.emoji}
+          </div>
+          <span style={{ fontSize: 20, fontWeight: 700, color: textMain, letterSpacing: '-0.01em' }}>
+            {friend.name}
+          </span>
+
+          {/* Status badge */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: chipBg, borderRadius: 20,
+            padding: '5px 12px',
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: textSub, letterSpacing: '0.02em' }}>
+              {STATUS_LABEL_FULL[friend.status]}
+            </span>
+          </div>
+        </div>
+
+        {/* Info rows */}
+        <div style={{ marginTop: 24, borderTop: `1px solid ${divider}`, marginInline: 24 }}>
+          {friend.subject && (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding: '14px 0', borderBottom: `1px solid ${divider}` }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: textSub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Subject</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: textMain }}>{friend.subject}</span>
+            </div>
+          )}
+          {friend.minutesLeft !== undefined && friend.status === 'focusing' && (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding: '14px 0', borderBottom: `1px solid ${divider}` }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: textSub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Time left</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: textMain }}>{friend.minutesLeft} min</span>
+            </div>
+          )}
+        </div>
+
+        {/* Wave button / sent / wave-back states */}
+        <div style={{ marginTop: 20, paddingInline: 24 }}>
+          {waved && friend.waving && friend.contact ? (
+            /* ── Wave-back received + contact revealed ── */
+            <div style={{
+              borderRadius: 18, overflow: 'hidden',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(58,60,56,0.10)'}`,
+            }}>
+              <div style={{
+                padding: '10px 16px 8px',
+                background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(58,60,56,0.04)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 15 }}>👋</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: textSub, letterSpacing: '0.03em' }}>
+                  {friend.name} waved back!
+                </span>
+              </div>
+              <button
+                onClick={() => openContact(friend.contact!)}
+                style={{
+                  width: '100%', padding: '14px 16px',
+                  border: 'none', cursor: 'pointer',
+                  background: statusColor,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  color: '#fff', fontSize: 14, fontWeight: 700, letterSpacing: '0.03em',
+                }}
+              >
+                <span style={{ fontSize: 17 }}>{PLATFORM_ICON[friend.contact.platform]}</span>
+                {friend.contact.handle}
+              </button>
+            </div>
+          ) : waved ? (
+            /* ── Waiting for reply ── */
+            <div style={{
+              width: '100%', padding: '14px 16px',
+              borderRadius: 18,
+              background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(58,60,56,0.06)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: textSub, letterSpacing: '0.03em' }}>
+                Waiting for reply…
+              </span>
+              {breakIn !== null && friend.status === 'focusing' && (
+                <span style={{ fontSize: 11, color: textSub, opacity: 0.7 }}>
+                  Their next break will be in {breakIn} min
+                </span>
+              )}
+            </div>
+          ) : (
+            /* ── Wave button ── */
+            <button
+              onClick={() => { setWaved(true); onWave(); }}
+              style={{
+                width: '100%', padding: '14px 0',
+                borderRadius: 18, border: 'none', cursor: 'pointer',
+                background: statusColor,
+                color: '#fff',
+                fontSize: 14, fontWeight: 700, letterSpacing: '0.04em',
+              }}
+            >
+              👋  Wave at {friend.name}
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* InlineCharacter — a SideCharacter wrapped in its own tiny SVG so it  */
 /* can live inside the HTML drum-picker rows without breaking layout.    */
 /* --------------------------------------------------------------------- */
@@ -558,10 +971,12 @@ function CompactScene({
 function InlineCharacter({
   friend,
   onWave,
+  onProfile,
   reaction = 'idle',
 }: {
   friend: Friend;
   onWave?: () => void;
+  onProfile?: () => void;
   reaction?: Reaction;
 }) {
   return (
@@ -570,15 +985,18 @@ function InlineCharacter({
       height="50"
       viewBox="-18 4 36 52"
       overflow="visible"
-      style={{ display: 'block', flexShrink: 0 }}
+      style={{ display: 'block', flexShrink: 0, cursor: onProfile ? 'pointer' : 'default' }}
+      onClick={onProfile ?? onWave}
+      role={onProfile ? 'button' : undefined}
+      aria-label={onProfile ? `View ${friend.name}'s profile` : undefined}
     >
       <SideCharacter
         friend={friend}
         cx={0}
         cy={44}
         showName={false}
-        clickable={!!onWave}
-        onClick={onWave}
+        clickable={!!(onWave || onProfile)}
+        onClick={undefined}
         reaction={reaction}
       />
     </svg>

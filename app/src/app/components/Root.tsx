@@ -43,8 +43,8 @@ export function Root() {
   }, [hasEntered, hasLoggedIn, hasRoutine, location.pathname, navigate]);
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#fff8ee] text-stone-800 font-sans">
-      <div className="relative isolate flex h-full w-full max-w-[400px] flex-col overflow-hidden bg-[#fff8ee] shadow-2xl sm:h-[800px] sm:rounded-[3rem] sm:border-[12px] sm:border-stone-900">
+    <div className="flex h-screen w-full items-center justify-center text-stone-800 font-sans" style={{ background: '#fff8ee' }}>
+      <div className="relative isolate flex h-full w-full max-w-[400px] flex-col overflow-hidden shadow-2xl sm:h-[800px] sm:rounded-[3rem] sm:border-[12px] sm:border-stone-900">
         <CanvasBackground tint={false} bgStyle={bgStyle} className="z-0" />
         <div
           className="pointer-events-none absolute inset-0 z-[1] backdrop-blur-[2px] transition-colors duration-700"

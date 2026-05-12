@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   useAppContext,
   STATUS_LABEL,
   STATUS_EMOJI,
 } from '../context/AppContext';
+import type { Friend, ContactPlatform } from '../context/AppContext';
 import { Motion } from './Motion';
-import { RoomScene, type ZoneId } from './RoomScene';
+import { RoomScene, FriendProfileSheet, type ZoneId } from './RoomScene';
 import { RoomChatter } from './RoomChatter';
-import { ChevronLeft, HandHelping, Copy, Check } from 'lucide-react';
+import { ChevronLeft, HandHelping, Copy, Check, X } from 'lucide-react';
+
+const HELPER_PLATFORM_ICON: Record<ContactPlatform, string> = {
+  instagram: '📸', discord: '🎮', snapchat: '👻', phone: '📱',
+};
+const HELPER_PLATFORM_URL: Record<ContactPlatform, (h: string) => string> = {
+  instagram: h => `https://instagram.com/${h.replace(/^@/, '')}`,
+  discord:   h => `https://discord.com/users/${h}`,
+  snapchat:  h => `https://snapchat.com/add/${h.replace(/^@/, '')}`,
+  phone:     h => `tel:${h.replace(/\s/g, '')}`,
+};
+const DEMO_HELPER = { name: 'Leo', emoji: '🐼', contact: { platform: 'discord' as ContactPlatform, handle: 'leo#4821' } };
 
 /* Same viewBox the scene uses — we convert tapped slot positions back
    to 0..1 ratios before storing them on `mySelf.seat`. */
@@ -44,9 +56,15 @@ export function StudyRoom() {
     pulseRoom,
     roomCode,
     roomName,
+    isDark,
   } = useAppContext();
 
   const [copied, setCopied] = useState(false);
+  const [profileFriend, setProfileFriend] = useState<Friend | null>(null);
+
+  type HelpWaveState = 'hidden' | 'incoming' | 'waved-back';
+  const [helpWave, setHelpWave] = useState<HelpWaveState>('hidden');
+  const helpWaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyCode = () => {
     if (!roomCode) return;
     navigator.clipboard.writeText(roomCode).catch(() => {});
@@ -74,10 +92,14 @@ export function StudyRoom() {
     updateMyStatus(zoneStatus, { subject: routine.subjects[0], seat: seatRatio });
 
     window.setTimeout(() => {
-      if (zoneId === 'help')  return; // stay in /room
-      if (zoneId === 'couch') { navigate('/break'); return; }
+      if (zoneId === 'help') {
+        if (helpWaveTimer.current) clearTimeout(helpWaveTimer.current);
+        setHelpWave('hidden');
+        helpWaveTimer.current = setTimeout(() => setHelpWave('incoming'), 3000);
+        return;
+      }
       if (hasRoutine) navigate('/session');
-      else            navigate('/setup/start-time');
+      else navigate('/routine', { state: { openPlanEditor: true } });
     }, 750);
   };
 
@@ -86,22 +108,21 @@ export function StudyRoom() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex h-full w-full flex-col bg-[#fff8ee]"
+      className="relative flex h-full w-full flex-col"
     >
       {/* HEADER */}
       <div className="flex items-center gap-3 px-5 pt-1">
         <button
           onClick={() => navigate(-1)}
           aria-label="Back"
-          className="icon-btn-sm"
+          style={{background:isDark?'rgba(255,255,255,0.10)':'rgba(244,244,240,0.9)',color:isDark?'rgba(255,255,255,0.60)':'#6b6f68'}}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition active:scale-90"
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
         </button>
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            Study Together
-          </span>
-          <h2 className="truncate text-[20px] font-bold leading-tight tracking-tight text-stone-800">
+          <span style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="text-[10px] font-semibold uppercase tracking-[0.2em]">Study Together</span>
+          <h2 style={{color:isDark?'rgba(255,255,255,0.88)':'#3a3c38'}} className="truncate text-[20px] font-bold leading-tight tracking-tight">
             {roomName ?? 'Pick a seat'}
           </h2>
         </div>
@@ -110,9 +131,10 @@ export function StudyRoom() {
           <button
             onClick={copyCode}
             aria-label="Copy room code"
-            className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 ring-1 ring-stone-200/80 transition active:scale-95"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 transition active:scale-95"
+            style={{background:isDark?'rgba(255,255,255,0.12)':'rgba(255,255,255,0.9)',border:`1px solid ${isDark?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.08)'}`}}
           >
-            <span className="time-num text-[12px] font-bold tracking-[0.1em] text-stone-700">
+            <span style={{color:isDark?'rgba(255,255,255,0.88)':'#3a3c38'}} className="time-num text-[12px] font-bold tracking-[0.1em]">
               {roomCode}
             </span>
             {copied
@@ -125,7 +147,7 @@ export function StudyRoom() {
       </div>
 
       {/* Micro-stats */}
-      <div className="mt-1 flex items-center gap-3 px-5 text-[11px] font-medium text-stone-400">
+      <div style={{color:isDark?'rgba(255,255,255,0.38)':'#9ca29a'}} className="mt-1 flex items-center gap-3 px-5 text-[11px] font-medium">
         <span className="online-dot" />
         <span className="time-num">
           {here} {here === 1 ? 'friend' : 'friends'} here
@@ -143,6 +165,8 @@ export function StudyRoom() {
         <RoomScene
           onWaveFriend={sendWaveTo}
           onSitAt={handleSitAt}
+          onPullBell={() => navigate('/routine')}
+          onProfileFriend={setProfileFriend}
           className="absolute inset-0 h-full w-full"
         />
       </div>
@@ -153,15 +177,16 @@ export function StudyRoom() {
       </div>
 
       {/* YOUR SEAT — slim status mini-bar built from design-system parts. */}
-      <div className="mx-4 mb-3 flex items-center gap-3 rounded-2xl border border-stone-200/60 bg-white/85 px-3 py-2.5 backdrop-blur">
+      <div className="mx-4 mb-3 flex items-center gap-3 rounded-2xl px-3 py-2.5 backdrop-blur"
+        style={{background:isDark?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.85)',border:`1px solid ${isDark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.08)'}`}}>
         <span className="avatar-bubble h-9 w-9 text-[18px]">
           {mySelf.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] font-semibold text-stone-800">
+          <span style={{color:isDark?'rgba(255,255,255,0.88)':'#1c1c1e'}} className="block truncate text-[12px] font-semibold">
             {mySelf.name} (you)
           </span>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-medium text-stone-500">
+          <div style={{color:isDark?'rgba(255,255,255,0.45)':undefined}} className="mt-0.5 flex items-center gap-1.5 text-[10px] font-medium text-stone-500">
             <span>{STATUS_EMOJI[mySelf.status]} {STATUS_LABEL[mySelf.status]}</span>
             {mySelf.subject && (
               <>
@@ -174,13 +199,101 @@ export function StudyRoom() {
         <button
           onClick={askForHelp}
           aria-label="I need help"
-          className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold text-stone-600 ring-1 ring-stone-200 transition active:scale-95"
+          className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition active:scale-95"
+          style={{color:isDark?'rgba(255,255,255,0.70)':'#57534e',border:`1px solid ${isDark?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.12)'}`}}
         >
           <HandHelping className="h-3.5 w-3.5" strokeWidth={2.2} />
           Help
         </button>
       </div>
 
+      {/* HELP DESK WAVE TOAST */}
+      {helpWave !== 'hidden' && (
+        <Motion.div
+          key={helpWave}
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+          className="pointer-events-auto absolute bottom-[80px] left-4 right-4 z-[50]"
+        >
+          <div style={{
+            borderRadius: 22,
+            background: 'rgba(28,28,36,0.94)',
+            backdropFilter: 'blur(18px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.30)',
+            overflow: 'hidden',
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap: 10, padding: '14px 16px 10px' }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: '#7ed4ae',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize: 20, flexShrink: 0,
+              }}>
+                {DEMO_HELPER.emoji}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.88)', display:'block' }}>
+                  {helpWave === 'incoming'
+                    ? `${DEMO_HELPER.name} wants to help 👋`
+                    : `${DEMO_HELPER.name} is on their way!`}
+                </span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                  {helpWave === 'incoming' ? 'Help Desk · on break' : 'Connect to keep in touch'}
+                </span>
+              </div>
+              <button
+                onClick={() => setHelpWave('hidden')}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,0.35)', padding: 4, flexShrink: 0 }}
+                aria-label="Dismiss"
+              >
+                <X size={14} strokeWidth={2.5} />
+              </button>
+            </div>
+            {helpWave === 'incoming' ? (
+              <button
+                onClick={() => setHelpWave('waved-back')}
+                style={{
+                  width: '100%', padding: '12px 0',
+                  border: 'none', cursor: 'pointer',
+                  background: '#34d399', color: '#fff',
+                  fontSize: 13, fontWeight: 700, letterSpacing: '0.03em',
+                  borderTop: '1px solid rgba(255,255,255,0.07)',
+                }}
+              >
+                👋  Wave back at {DEMO_HELPER.name}
+              </button>
+            ) : (
+              <button
+                onClick={() => window.open(HELPER_PLATFORM_URL[DEMO_HELPER.contact.platform](DEMO_HELPER.contact.handle), '_blank', 'noopener')}
+                style={{
+                  width: '100%', padding: '12px 0',
+                  border: 'none', cursor: 'pointer',
+                  background: '#34d399', color: '#fff',
+                  fontSize: 13, fontWeight: 700, letterSpacing: '0.03em',
+                  borderTop: '1px solid rgba(255,255,255,0.07)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                <span>{HELPER_PLATFORM_ICON[DEMO_HELPER.contact.platform]}</span>
+                {DEMO_HELPER.contact.handle}
+              </button>
+            )}
+          </div>
+        </Motion.div>
+      )}
+
+      {/* FRIEND PROFILE SHEET — rendered at root so it covers seat bar + chatter */}
+      {profileFriend && (
+        <FriendProfileSheet
+          friend={profileFriend}
+          isDark={isDark}
+          onWave={() => sendWaveTo(profileFriend.id)}
+          onClose={() => setProfileFriend(null)}
+        />
+      )}
     </Motion.div>
   );
 }

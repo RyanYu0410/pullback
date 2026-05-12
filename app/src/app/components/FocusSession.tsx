@@ -1,11 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAppContext } from '../context/AppContext';
-import type { RouteItem, SubTask } from '../context/AppContext';
+import type { RouteItem, SubTask, ContactPlatform } from '../context/AppContext';
 import { Motion } from './Motion';
 import { CanvasBackground } from './CanvasBackground';
 import { BellSVG } from './PullBell';
-import { Coffee, CheckCircle2, X, Plus, ListChecks } from 'lucide-react';
+import { Coffee, CheckCircle2, X, Plus, ListChecks, Users } from 'lucide-react';
+
+/* ── Incoming wave toast ── */
+const WAVE_PLATFORM_ICON: Record<ContactPlatform, string> = {
+  instagram: '📸', discord: '🎮', snapchat: '👻', phone: '📱',
+};
+const WAVE_PLATFORM_URL: Record<ContactPlatform, (h: string) => string> = {
+  instagram: h => `https://instagram.com/${h.replace(/^@/, '')}`,
+  discord:   h => `https://discord.com/users/${h}`,
+  snapchat:  h => `https://snapchat.com/add/${h.replace(/^@/, '')}`,
+  phone:     h => `tel:${h.replace(/\s/g, '')}`,
+};
+
+/* Demo waver — whoever in the seed has 'waving' true, or we pick f1 */
+const DEMO_WAVER = { name: 'Mia', emoji: '🦊', contact: { platform: 'instagram' as ContactPlatform, handle: '@mia.study' } };
 
 const MAX_PULL = 200;
 const REVEAL_THRESHOLD = 80;
@@ -153,6 +167,11 @@ export function FocusSession() {
 
   /* Tasks sheet — collapsed by default so the timer stays unobstructed. */
   const [showTasks, setShowTasks] = useState(false);
+
+  /* Wave toast state */
+  type WaveState = 'hidden' | 'incoming' | 'waved-back';
+  const [waveState, setWaveState] = useState<WaveState>('hidden');
+  const waveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAnchored = sessionStartTime !== null;
 
@@ -312,6 +331,14 @@ export function FocusSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* Auto-trigger demo wave 8s after session anchors */
+  useEffect(() => {
+    if (!isAnchored || waveState !== 'hidden') return;
+    waveTimerRef.current = setTimeout(() => setWaveState('incoming'), 8000);
+    return () => { if (waveTimerRef.current) clearTimeout(waveTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnchored]);
+
   /* Re-sync visuals if status changes (e.g. coming back from /break). */
   useEffect(() => {
     if (sessionStartTime !== null) {
@@ -336,7 +363,7 @@ export function FocusSession() {
     setSessionStartTime(null);
     setSessionStatus('drifting');
     updateMyStatus('offline');
-    navigate('/welcome');
+    navigate('/routine');
   };
 
   const totalAll = routeItems.length + subTasks.length;
@@ -417,14 +444,23 @@ export function FocusSession() {
         {/* Bottom controls — only when running. Quiet pill row. */}
         {isAnchored && (
           <div className="pointer-events-auto relative z-[60] flex flex-col items-center gap-3 px-5 pb-6">
-            {/* Tasks summary pill — taps to open sheet */}
-            <button
-              onClick={() => setShowTasks(true)}
-              className="flex items-center gap-2 rounded-full bg-white/22 px-4 py-2 text-[12px] font-bold text-white/95 backdrop-blur-md ring-1 ring-white/20 transition active:scale-95"
-            >
-              <ListChecks className="h-3.5 w-3.5" strokeWidth={2.2} />
-              <span className="time-num">Tasks · {completedCount}/{totalAll}</span>
-            </button>
+            {/* Pill row */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTasks(true)}
+                className="flex items-center gap-2 rounded-full bg-white/35 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-md ring-1 ring-white/30 transition active:scale-95"
+              >
+                <ListChecks className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <span className="time-num">Tasks · {completedCount}/{totalAll}</span>
+              </button>
+              <button
+                onClick={() => navigate('/room')}
+                className="flex items-center gap-2 rounded-full bg-white/35 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-md ring-1 ring-white/30 transition active:scale-95"
+              >
+                <Users className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <span>Room</span>
+              </button>
+            </div>
 
             {/* Two minimal action buttons */}
             <div className="grid w-full grid-cols-2 gap-2">
@@ -438,6 +474,87 @@ export function FocusSession() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Wave toast — floats above the action buttons */}
+        {waveState !== 'hidden' && (
+          <Motion.div
+            key={waveState}
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+            className="pointer-events-auto absolute bottom-[112px] left-4 right-4 z-[65]"
+          >
+            <div style={{
+              borderRadius: 22,
+              background: 'rgba(28,28,36,0.92)',
+              backdropFilter: 'blur(18px)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+              overflow: 'hidden',
+            }}>
+              {/* Top row: avatar + message + dismiss */}
+              <div style={{ display:'flex', alignItems:'center', gap: 10, padding: '14px 16px 10px' }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#f5a48f',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize: 20, flexShrink: 0,
+                }}>
+                  {DEMO_WAVER.emoji}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.88)', display:'block' }}>
+                    {waveState === 'incoming' ? `${DEMO_WAVER.name} waved at you 👋` : `${DEMO_WAVER.name} waved back!`}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                    {waveState === 'incoming' ? 'Focus Table · Math' : 'Tap to connect'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setWaveState('hidden')}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,0.35)', padding: 4, flexShrink: 0 }}
+                  aria-label="Dismiss"
+                >
+                  <X size={14} strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* Action row */}
+              {waveState === 'incoming' ? (
+                <button
+                  onClick={() => setWaveState('waved-back')}
+                  style={{
+                    width: '100%', padding: '12px 0',
+                    border: 'none', cursor: 'pointer',
+                    background: '#34d399',
+                    color: '#fff',
+                    fontSize: 13, fontWeight: 700, letterSpacing: '0.03em',
+                    borderTop: '1px solid rgba(255,255,255,0.07)',
+                  }}
+                >
+                  👋  Wave back at {DEMO_WAVER.name}
+                </button>
+              ) : (
+                <button
+                  onClick={() => window.open(WAVE_PLATFORM_URL[DEMO_WAVER.contact.platform](DEMO_WAVER.contact.handle), '_blank', 'noopener')}
+                  style={{
+                    width: '100%', padding: '12px 0',
+                    border: 'none', cursor: 'pointer',
+                    background: '#34d399',
+                    color: '#fff',
+                    fontSize: 13, fontWeight: 700, letterSpacing: '0.03em',
+                    borderTop: '1px solid rgba(255,255,255,0.07)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <span>{WAVE_PLATFORM_ICON[DEMO_WAVER.contact.platform]}</span>
+                  {DEMO_WAVER.contact.handle}
+                </button>
+              )}
+            </div>
+          </Motion.div>
         )}
 
         {/* Tasks sheet — slides up from the bottom when the user taps the pill. */}
@@ -455,28 +572,30 @@ export function FocusSession() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 80, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 340, damping: 32 }}
-              className="card-glass-lg mx-3 mb-4 max-h-[70%] overflow-hidden bg-[#fff8ee]"
+              className="mx-3 mb-4 max-h-[70%] overflow-hidden rounded-[28px] shadow-2xl"
+              style={{ background: 'rgba(18, 16, 26, 0.97)', backdropFilter: 'blur(28px)', border: '1px solid rgba(255,255,255,0.10)' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Drag handle */}
               <div className="flex justify-center pt-2.5">
-                <span className="h-1 w-9 rounded-full bg-stone-300/80" />
+                <span className="h-1 w-9 rounded-full bg-white/20" />
               </div>
 
               {/* Header */}
               <div className="flex items-center justify-between px-6 pb-2 pt-3">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.38)' }}>
                     Tasks
                   </span>
-                  <p className="serif-display text-[20px] leading-tight text-stone-800">
-                    {completedCount}<span className="text-stone-300"> / </span>{totalAll}
+                  <p className="serif-display text-[20px] leading-tight" style={{ color: 'rgba(255,255,255,0.90)' }}>
+                    {completedCount}<span style={{ color: 'rgba(255,255,255,0.22)' }}> / </span>{totalAll}
                   </p>
                 </div>
                 <button
                   onClick={() => setShowTasks(false)}
                   aria-label="Close"
-                  className="icon-btn-sm"
+                  className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-90"
+                  style={{ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.50)' }}
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2.2} />
                 </button>
@@ -498,7 +617,7 @@ export function FocusSession() {
                     />
                   ))}
                   {routeItems.length === 0 && (
-                    <p className="py-4 text-center text-[12px] font-medium text-stone-400">
+                    <p className="py-4 text-center text-[12px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>
                       No subjects yet.
                     </p>
                   )}
@@ -565,7 +684,7 @@ function SubjectCategory({
   };
 
   return (
-    <div className="border-t border-stone-200/70 first:border-t-0">
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} className="first:border-t-0">
       {/* Subject header row */}
       <button
         onClick={() => setExpanded((e) => !e)}
@@ -573,14 +692,14 @@ function SubjectCategory({
         className="flex w-full items-center gap-3 py-3 text-left transition active:opacity-70"
       >
         <span className="text-[18px] leading-none">{subjectEmoji(subject.label)}</span>
-        <span className={[
-          'flex-1 text-[14px] font-semibold',
-          effectiveDone ? 'text-stone-400 line-through decoration-stone-300' : 'text-stone-800',
-        ].join(' ')}>
+        <span
+          className="flex-1 text-[14px] font-semibold"
+          style={{ color: effectiveDone ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.88)', textDecoration: effectiveDone ? 'line-through' : 'none' }}
+        >
           {subject.label}
         </span>
         {subTasks.length > 0 ? (
-          <span className="text-[11px] font-medium text-stone-400 time-num">
+          <span className="time-num text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>
             {doneCount}/{subTasks.length}
           </span>
         ) : (
@@ -588,7 +707,8 @@ function SubjectCategory({
             <span
               role="button"
               onClick={(e) => { e.stopPropagation(); onSubjectDone(); }}
-              className="text-[10px] font-medium text-stone-400"
+              className="text-[10px] font-medium"
+              style={{ color: 'rgba(255,255,255,0.35)' }}
             >
               undo
             </span>
@@ -602,7 +722,8 @@ function SubjectCategory({
           role="button"
           aria-label="Add task"
           onClick={(e) => { e.stopPropagation(); startAdding(); }}
-          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-100 active:scale-90"
+          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full transition active:scale-90"
+          style={{ color: 'rgba(255,255,255,0.38)' }}
         >
           <Plus className="h-3 w-3" strokeWidth={2.5} />
         </span>
@@ -621,7 +742,7 @@ function SubjectCategory({
           ))}
 
           {adding && (
-            <div className="flex items-center gap-2 border-b border-stone-200 py-1.5">
+            <div className="flex items-center gap-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.10)' }}>
               <input
                 ref={inputRef}
                 value={draft}
@@ -631,11 +752,12 @@ function SubjectCategory({
                   if (e.key === 'Escape') { setAdding(false); setDraft(''); }
                 }}
                 placeholder="e.g. Read page 24…"
-                className="flex-1 bg-transparent text-[13px] font-medium text-stone-700 placeholder:text-stone-300 outline-none"
+                className="flex-1 bg-transparent text-[13px] font-medium outline-none"
+                style={{ color: 'rgba(255,255,255,0.80)', caretColor: '#5eead4' }}
               />
               <button
                 onClick={commitAdd}
-                className="text-[11px] font-semibold text-rose-400"
+                className="text-[11px] font-semibold text-emerald-400"
               >Add</button>
             </div>
           )}
@@ -733,22 +855,26 @@ function SubTaskRow({ task, done, onFinish }: { task: SubTask; done: boolean; on
       <div className="flex items-center gap-2.5">
         <span
           aria-hidden
-          className={[
-            'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full transition-colors',
-            done ? 'bg-emerald-400 text-white' : 'border border-stone-300',
-          ].join(' ')}
+          className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full transition-colors"
+          style={done
+            ? { background: '#34d399', color: '#fff' }
+            : { border: '1px solid rgba(255,255,255,0.22)' }}
         >
           {done && <span className="text-[8px] font-bold leading-none">✓</span>}
         </span>
-        <span className={[
-          'text-[13px]',
-          done ? 'font-medium text-stone-400 line-through decoration-stone-300' : 'font-medium text-stone-700',
-        ].join(' ')}>
+        <span
+          className="text-[13px] font-medium"
+          style={{ color: done ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.78)', textDecoration: done ? 'line-through' : 'none' }}
+        >
           {task.label}
         </span>
       </div>
       {done ? (
-        <button onClick={onFinish} className="text-[10px] font-medium text-stone-400">
+        <button
+          onClick={onFinish}
+          className="text-[10px] font-medium"
+          style={{ color: 'rgba(255,255,255,0.35)' }}
+        >
           undo
         </button>
       ) : (

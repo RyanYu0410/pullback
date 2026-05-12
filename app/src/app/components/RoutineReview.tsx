@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { useAppContext, formatOnlineUsers } from '../context/AppContext';
 import { Motion } from './Motion';
-import { Pencil, Users, X, Headphones, ArrowRight, Hash, Plus } from 'lucide-react';
+import { Plus, Users, X, Headphones, ArrowRight, Hash } from 'lucide-react';
 import { BellSVG } from './PullBell';
 
 interface Block {
@@ -18,6 +18,7 @@ const PULL_THRESHOLD = 80;
 const QUICK_SUBJECTS = ['Math', 'Science', 'English', 'History', 'Reading', 'Art', 'Music', 'Language', 'PE', 'Code'] as const;
 const QUICK_TIMES    = ['3:00', '3:30', '4:00', '4:30', '5:00', '5:30', '6:00'] as const;
 const FOCUS_LENGTHS  = [20, 25, 30, 45, 60] as const;
+const REMOVE_REVEAL  = 88;
 
 function fmt(date: Date) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -38,11 +39,13 @@ function buildBlocks(
   const start = new Date();
   start.setHours(hh || 16, mm || 0, 0, 0);
 
-  const subjectsCount = subjects.length || 1;
+  if (subjects.length === 0) return [];
+
+  const subjectsCount = subjects.length;
   const blocks: Block[] = [];
   const cursor = new Date(start);
   for (let i = 0; i < subjectsCount; i++) {
-    const subj = subjects[i] ?? 'Homework';
+    const subj = subjects[i];
     blocks.push({
       kind: 'focus',
       label: subj,
@@ -88,6 +91,8 @@ function emojiForSubject(name: string) {
  */
 export function RoutineReview() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromRoom = !!(location.state as { openPlanEditor?: boolean } | null)?.openPlanEditor;
   const {
     routine,
     setRoutine,
@@ -100,7 +105,26 @@ export function RoutineReview() {
     userEmoji,
     joinRoom,
     createRoom,
+    isDark,
   } = useAppContext();
+
+  const c = {
+    bg:        isDark ? 'transparent'                   : 'transparent',
+    text:      isDark ? 'rgba(255,255,255,0.88)'         : '#3a3c38',
+    sub:       isDark ? 'rgba(255,255,255,0.40)'         : '#9ca29a',
+    dim:       isDark ? 'rgba(255,255,255,0.22)'         : '#c4c0ba',
+    rowBg:     isDark ? 'transparent'                   : '#fff8ee',
+    rowBorder: isDark ? 'rgba(255,255,255,0.08)'         : 'rgba(0,0,0,0.05)',
+    emptyBg:   isDark ? 'rgba(255,255,255,0.06)'        : 'transparent',
+    emptyBorder: isDark ? 'rgba(255,255,255,0.14)'      : 'rgba(0,0,0,0.12)',
+    removeBg:  isDark ? '#3a1a1a'                        : '#fff1f2',
+    removeColor: isDark ? '#f87171'                     : '#ef4444',
+    btnBg:     isDark ? 'rgba(255,255,255,0.10)'         : 'rgba(244,244,240,0.9)',
+    btnColor:  isDark ? 'rgba(255,255,255,0.60)'         : '#6b6f68',
+    avatarOutline: isDark ? 'rgba(255,255,255,0.18)'     : 'rgba(251,113,133,0.30)',
+    card:      isDark ? 'rgba(28,28,36,0.97)'            : '#fff8ee',
+    border:    isDark ? 'rgba(255,255,255,0.10)'         : 'rgba(0,0,0,0.06)',
+  };
 
   const [showPicker, setShowPicker] = useState(false);
   // 'mode' = choose alone/together; 'code' = enter/create a room code
@@ -113,14 +137,38 @@ export function RoutineReview() {
   const [draftTime, setDraftTime] = useState('4:00');
   const [draftFocus, setDraftFocus] = useState(25);
   const [customSubject, setCustomSubject] = useState('');
+  const [revealedRemoveIndex, setRevealedRemoveIndex] = useState<number | null>(null);
 
-  const openPlanEditor = () => {
+  const removeFocusSubject = (label: string) => {
+    setRoutine({
+      ...routine,
+      subjects: routine.subjects.filter((s) => s !== label),
+    });
+    setRevealedRemoveIndex(null);
+  };
+
+  const addSubjectInputRef = useRef<HTMLInputElement>(null);
+
+  const openPlanEditor = (focusInput = false) => {
     setDraftSubjects([...routine.subjects]);
     setDraftTime(routine.startTime);
     setDraftFocus(routine.focusMinutes);
     setCustomSubject('');
     setShowPlanEditor(true);
+    if (focusInput) {
+      setTimeout(() => addSubjectInputRef.current?.focus(), 80);
+    }
   };
+
+  // Ref so the bell's stale closure can read the current plan state.
+  const hasPlanRef = useRef(routine.subjects.length > 0);
+  useEffect(() => { hasPlanRef.current = routine.subjects.length > 0; }, [routine.subjects.length]);
+
+  // When navigated here from the room's "sit" button, open the plan editor immediately.
+  useEffect(() => {
+    if (fromRoom) openPlanEditor();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleDraftSubject = (s: string) => {
     setDraftSubjects((prev) =>
@@ -210,9 +258,9 @@ export function RoutineReview() {
       isDragging = false;
       document.body.classList.remove('pull-active');
       if (pull >= PULL_THRESHOLD) {
-        setShowPicker(true);
+        if (hasPlanRef.current) setShowPicker(true); else openPlanEditor();
       } else if (!didDrag) {
-        setShowPicker(true);
+        if (hasPlanRef.current) setShowPicker(true); else openPlanEditor();
       } else {
         velocity = 0;
         animFrame = requestAnimationFrame(spring);
@@ -250,26 +298,25 @@ export function RoutineReview() {
         <button
           onClick={() => navigate('/settings')}
           aria-label="My profile"
-          className="avatar-bubble"
+          style={{display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0,height:'2.5rem',width:'2.5rem',borderRadius:'9999px',background:'rgba(255,255,255,0.92)',fontSize:20,lineHeight:1,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',outline:`1.5px solid ${c.avatarOutline}`,outlineOffset:'-0.5px',transition:'transform 0.12s ease'}}
         >
           {userEmoji || '🐶'}
         </button>
 
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            Today
-          </span>
-          <h2 className="truncate text-[20px] font-bold leading-tight tracking-tight text-stone-800">
+          <span style={{color:c.sub}} className="text-[10px] font-semibold uppercase tracking-[0.2em]">Today</span>
+          <h2 style={{color: c.text}} className="truncate text-[20px] font-bold leading-tight tracking-tight">
             {userName ? `${userName}’s plan` : 'My plan'}
           </h2>
         </div>
 
         <button
-          onClick={openPlanEditor}
-          aria-label="Edit plan"
-          className="icon-btn-sm"
+          onClick={() => openPlanEditor(true)}
+          aria-label="Add subject"
+          style={{background:c.btnBg,color:c.btnColor}}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition active:scale-90"
         >
-          <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
         </button>
       </div>
 
@@ -286,24 +333,28 @@ export function RoutineReview() {
             pendantRef={pendantRef}
           />
         </div>
-        <span className="mt-1 text-[11px] font-medium tracking-wide text-stone-400">
-          tap or pull to begin
-        </span>
+        <span style={{color:c.sub}} className="mt-1 text-[11px] font-medium tracking-wide">tap or pull to begin</span>
       </div>
 
       {/* SCHEDULE */}
       <div className="no-scrollbar flex-1 overflow-y-auto px-7 pt-4">
         <div className="flex items-baseline justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
-            Schedule
-          </span>
-          <span className="text-[10px] font-semibold tracking-wide text-stone-400 time-num">
-            {totalMinutes}m total
-          </span>
+          <span style={{color:c.sub}} className="text-[12px] font-semibold uppercase tracking-[0.2em]">Schedule</span>
+          <span style={{color:c.sub}} className="text-[12px] font-semibold tracking-wide time-num">{totalMinutes}m total</span>
         </div>
 
         <div className="mt-2">
-          {blocks.map((b, i) => {
+          {blocks.length === 0 ? (
+            <button
+              type="button"
+              onClick={openPlanEditor}
+              className="w-full rounded-2xl px-4 py-5 text-left transition active:scale-[0.99]"
+              style={{border:`1px dashed ${c.emptyBorder}`,background:c.emptyBg}}
+            >
+              <p style={{color:c.text}} className="text-[16px] font-semibold">No subjects yet</p>
+              <p style={{color:c.sub}} className="mt-1 text-[14px]">Tap to set today's study plan.</p>
+            </button>
+          ) : blocks.map((b, i) => {
             if (b.kind === 'break') {
               return (
                 <Motion.div
@@ -313,87 +364,72 @@ export function RoutineReview() {
                   transition={{ delay: 0.04 * i }}
                   className="schedule-row"
                 >
-                  <span className="time-num text-[12px] font-semibold text-stone-300">{b.startsAt}</span>
+                  <span style={{color:c.dim}} className="time-num text-[13px] font-semibold">{b.startsAt}</span>
                   <span className="flex items-center gap-2.5 truncate">
-                    <span className="flex-shrink-0 text-[14px] leading-none text-stone-300">{b.emoji}</span>
-                    <span className="truncate text-[13px] font-medium text-stone-300">{b.label}</span>
+                    <span style={{color:c.dim}} className="flex-shrink-0 text-[15px] leading-none">{b.emoji}</span>
+                    <span style={{color:c.dim}} className="truncate text-[14px] font-medium">{b.label}</span>
                   </span>
-                  <span className="time-num text-[11px] font-medium text-stone-300">{b.minutes}m</span>
+                  <span style={{color:c.dim}} className="time-num text-[12px] font-medium">{b.minutes}m</span>
                 </Motion.div>
               );
             }
 
-            // Focus block — swipe left to remove, tap to go home
+            const isRevealed = revealedRemoveIndex === i;
+
             return (
               <Motion.div
                 key={i}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.04 * i }}
-                style={{ position: 'relative', overflow: 'hidden' }}
+                className="relative overflow-hidden"
               >
-                {/* Delete button revealed on swipe */}
                 <button
-                  onClick={() =>
-                    setRoutine({
-                      ...routine,
-                      subjects: routine.subjects.filter((s) => s !== b.label),
-                    })
-                  }
-                  aria-label={`Remove ${b.label}`}
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    paddingRight: 14,
-                    gap: 4,
-                    color: '#ef4444',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    background: 'transparent',
-                    border: 'none',
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFocusSubject(b.label);
                   }}
+                  aria-label={`Remove ${b.label}`}
+                  className="absolute inset-y-0 right-0 z-0 flex w-[88px] items-center justify-end pr-3 text-[11px] font-bold uppercase tracking-[0.06em]"
+                  style={{background:c.removeBg,color:c.removeColor,opacity:isRevealed?1:0,pointerEvents:isRevealed?'auto':'none',transition:'opacity 0.18s'}}
                 >
                   Remove ✕
                 </button>
 
-                {/* Draggable row */}
                 <Motion.div
                   drag="x"
-                  dragConstraints={{ left: -90, right: 0 }}
-                  dragElastic={0.04}
+                  dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
+                  dragElastic={0.08}
                   dragMomentum={false}
+                  animate={{ x: isRevealed ? -REMOVE_REVEAL : 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                   onDragEnd={(_, info) => {
-                    if (info.offset.x < -60) {
-                      setRoutine({
-                        ...routine,
-                        subjects: routine.subjects.filter((s) => s !== b.label),
-                      });
+                    if (info.offset.x < -48 || info.velocity.x < -280) {
+                      setRevealedRemoveIndex(i);
+                      return;
+                    }
+                    if (isRevealed && info.offset.x > -24) {
+                      setRevealedRemoveIndex(null);
                     }
                   }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => navigate('/')}
-                  className="schedule-row"
-                  style={{
-                    background: '#fff8ee',
-                    position: 'relative',
-                    zIndex: 1,
-                    cursor: 'pointer',
-                    touchAction: 'pan-y',
+                  onClick={() => {
+                    if (isRevealed) {
+                      setRevealedRemoveIndex(null);
+                      return;
+                    }
+                    navigate('/');
                   }}
+                  className="schedule-row relative z-10 cursor-pointer"
+                  style={{ touchAction:'pan-y', background:c.rowBg }}
                 >
-                  <span className="time-num text-[12px] font-semibold text-stone-400">{b.startsAt}</span>
+                  <span style={{color:c.sub}} className="time-num text-[13px] font-semibold">{b.startsAt}</span>
                   <span className="flex items-center gap-2.5 truncate">
-                    <span className="flex-shrink-0 text-[16px] leading-none">{b.emoji}</span>
-                    <span className="truncate text-[14px] font-semibold text-stone-800">{b.label}</span>
+                    <span className="flex-shrink-0 text-[17px] leading-none">{b.emoji}</span>
+                    <span style={{color:c.text}} className="truncate text-[15px] font-semibold">{b.label}</span>
                   </span>
-                  <span className="time-num text-[11px] font-medium text-stone-400">{b.minutes}m</span>
+                  <span style={{color:c.sub}} className="time-num text-[12px] font-medium">{b.minutes}m</span>
                 </Motion.div>
               </Motion.div>
             );
@@ -403,9 +439,7 @@ export function RoutineReview() {
         {/* Footer: online count */}
         <div className="mt-6 flex items-center justify-center gap-2 pb-4">
           <span className="online-dot" />
-          <span className="text-[11px] font-medium text-stone-400 time-num">
-            {formatOnlineUsers()}
-          </span>
+          <span style={{color:c.sub}} className="text-[13px] font-medium time-num">{formatOnlineUsers()}</span>
         </div>
       </div>
 
@@ -416,7 +450,7 @@ export function RoutineReview() {
           aria-modal="true"
           aria-label="Choose study mode"
           className="absolute inset-0 z-50 flex flex-col justify-end"
-          style={{ background: 'rgba(20,18,28,0.4)', backdropFilter: 'blur(4px)' }}
+          style={{ background: isDark ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.18)', backdropFilter: 'blur(4px)' }}
           onClick={() => { setShowPicker(false); setPickerStep('mode'); setCodeInput(''); }}
         >
           <Motion.div
@@ -424,12 +458,13 @@ export function RoutineReview() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 340, damping: 32 }}
-            className="mx-3 mb-4 overflow-hidden rounded-[28px] bg-[#fff8ee] shadow-2xl"
+            className="mx-3 mb-4 overflow-hidden rounded-[28px] shadow-2xl"
+            style={{ background: c.card, border: `1px solid ${c.border}` }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drag handle */}
             <div className="flex justify-center pt-2.5">
-              <span className="h-1 w-9 rounded-full bg-stone-300/80" />
+              <span className="h-1 w-9 rounded-full" style={{ background: c.dim }} />
             </div>
 
             {/* Sheet header */}
@@ -437,10 +472,10 @@ export function RoutineReview() {
               <div>
                 {pickerStep === 'mode' ? (
                   <>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: c.sub }}>
                       Begin
                     </span>
-                    <p className="serif-display mt-0.5 text-[20px] leading-tight text-stone-800">
+                    <p className="serif-display mt-0.5 text-[20px] leading-tight" style={{ color: c.text }}>
                       Choose your space
                     </p>
                   </>
@@ -448,11 +483,12 @@ export function RoutineReview() {
                   <>
                     <button
                       onClick={() => { setPickerStep('mode'); setCodeInput(''); }}
-                      className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-stone-400 transition hover:text-stone-600"
+                      className="mb-1 flex items-center gap-1 text-[11px] font-semibold transition"
+                      style={{ color: c.sub }}
                     >
                       ← back
                     </button>
-                    <p className="serif-display text-[20px] leading-tight text-stone-800">
+                    <p className="serif-display text-[20px] leading-tight" style={{ color: c.text }}>
                       Study together
                     </p>
                   </>
@@ -461,7 +497,8 @@ export function RoutineReview() {
               <button
                 onClick={() => { setShowPicker(false); setPickerStep('mode'); setCodeInput(''); }}
                 aria-label="Close"
-                className="icon-btn-sm"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-90"
+                style={{ background: c.btnBg, color: c.btnColor }}
               >
                 <X className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
@@ -476,6 +513,7 @@ export function RoutineReview() {
                   subtitle="Join or create a shared room"
                   meta="Group session"
                   tone="mint"
+                  dark={isDark}
                   isLastUsed={routine.mode === 'together'}
                   onClick={() => setPickerStep('code')}
                 />
@@ -485,6 +523,7 @@ export function RoutineReview() {
                   subtitle="A quiet, private session"
                   meta="Solo session"
                   tone="lav"
+                  dark={isDark}
                   isLastUsed={routine.mode === 'alone'}
                   onClick={() => {
                     setIsLinePulled(true);
@@ -500,8 +539,11 @@ export function RoutineReview() {
             {pickerStep === 'code' && (
               <div className="px-4 pb-6 pt-3">
                 {/* Code input */}
-                <div className="card-glass flex items-center gap-3 px-4 py-3">
-                  <Hash className="h-4 w-4 flex-shrink-0 text-stone-400" strokeWidth={2} />
+                <div
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                  style={{ background: c.btnBg, border: `1px solid ${c.border}` }}
+                >
+                  <Hash className="h-4 w-4 flex-shrink-0" style={{ color: c.dim }} strokeWidth={2} />
                   <input
                     type="text"
                     value={codeInput}
@@ -510,12 +552,14 @@ export function RoutineReview() {
                     }
                     placeholder="Enter room code"
                     autoFocus
-                    className="min-w-0 flex-1 bg-transparent text-[16px] font-bold tracking-[0.12em] text-stone-800 placeholder:font-normal placeholder:tracking-normal placeholder:text-stone-300 outline-none"
+                    className="min-w-0 flex-1 bg-transparent text-[16px] font-bold tracking-[0.12em] outline-none placeholder:font-normal placeholder:tracking-normal placeholder:opacity-30"
+                    style={{ color: c.text }}
                   />
                   {codeInput.length > 0 && (
                     <button
                       onClick={() => setCodeInput('')}
-                      className="text-stone-300 transition hover:text-stone-500"
+                      className="transition"
+                      style={{ color: c.dim }}
                       aria-label="Clear"
                     >
                       <X className="h-3.5 w-3.5" strokeWidth={2} />
@@ -536,10 +580,9 @@ export function RoutineReview() {
                   }}
                   className={[
                     'mt-3 flex w-full items-center justify-between rounded-2xl px-4 py-3.5 text-left transition active:scale-[0.98]',
-                    codeInput.length >= 3
-                      ? 'btn-mint shadow-md'
-                      : 'bg-stone-100 text-stone-400',
+                    codeInput.length >= 3 ? 'btn-mint shadow-md' : '',
                   ].join(' ')}
+                  style={codeInput.length < 3 ? { background: c.btnBg, color: c.sub, border: `1px solid ${c.border}` } : undefined}
                 >
                   <span className="text-[14px] font-bold">Join this room</span>
                   <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
@@ -547,9 +590,9 @@ export function RoutineReview() {
 
                 {/* Divider */}
                 <div className="my-4 flex items-center gap-3">
-                  <hr className="flex-1 border-stone-200" />
-                  <span className="text-[11px] font-semibold text-stone-400">or</span>
-                  <hr className="flex-1 border-stone-200" />
+                  <hr className="flex-1" style={{ borderColor: c.border }} />
+                  <span className="text-[11px] font-semibold" style={{ color: c.sub }}>or</span>
+                  <hr className="flex-1" style={{ borderColor: c.border }} />
                 </div>
 
                 {/* Create */}
@@ -562,13 +605,14 @@ export function RoutineReview() {
                     setCodeInput('');
                     navigate('/room');
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl bg-white/90 px-4 py-3.5 text-left ring-1 ring-stone-200/80 transition active:scale-[0.98]"
+                  className="flex w-full items-center justify-between rounded-2xl px-4 py-3.5 text-left transition active:scale-[0.98]"
+                  style={{ background: c.btnBg, border: `1px solid ${c.border}` }}
                 >
                   <span className="flex flex-col">
-                    <span className="text-[14px] font-bold text-stone-800">Create a new room</span>
-                    <span className="mt-0.5 text-[11px] text-stone-400">We'll give you a shareable code</span>
+                    <span className="text-[14px] font-bold" style={{ color: c.text }}>Create a new room</span>
+                    <span className="mt-0.5 text-[11px]" style={{ color: c.sub }}>We'll give you a shareable code</span>
                   </span>
-                  <ArrowRight className="h-4 w-4 flex-shrink-0 text-stone-400" strokeWidth={2} />
+                  <ArrowRight className="h-4 w-4 flex-shrink-0" style={{ color: c.dim }} strokeWidth={2} />
                 </button>
               </div>
             )}
@@ -591,32 +635,35 @@ export function RoutineReview() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 340, damping: 32 }}
-            className="mx-3 mb-4 overflow-hidden rounded-[28px] bg-[#fff8ee] shadow-2xl"
+            className="mx-3 mb-4 overflow-hidden rounded-[28px] shadow-2xl"
+            style={{ background: c.card, border: `1px solid ${c.border}` }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle */}
             <div className="flex justify-center pt-2.5">
-              <span className="h-1 w-9 rounded-full bg-stone-300/80" />
+              <span className="h-1 w-9 rounded-full" style={{ background: c.dim }} />
             </div>
 
             {/* Header */}
             <div className="flex items-start justify-between px-6 pb-0 pt-4">
               <div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+                <span style={{ color: c.sub }} className="text-[10px] font-semibold uppercase tracking-[0.2em]">
                   Today's focus
                 </span>
-                <p className="mt-0.5 text-[20px] font-bold tracking-tight text-stone-800">
+                <p style={{ color: c.text }} className="mt-0.5 text-[20px] font-bold tracking-tight">
                   Set my study plan
                 </p>
               </div>
-              <button onClick={() => setShowPlanEditor(false)} aria-label="Close" className="icon-btn-sm">
+              <button onClick={() => setShowPlanEditor(false)} aria-label="Close"
+                style={{ background: c.btnBg, color: c.sub }}
+                className="icon-btn-sm">
                 <X className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
             </div>
 
             {/* Subjects */}
             <div className="px-5 pt-5">
-              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              <p style={{ color: c.sub }} className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em]">
                 Subjects
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -626,12 +673,10 @@ export function RoutineReview() {
                     <button
                       key={s}
                       onClick={() => toggleDraftSubject(s)}
-                      className={[
-                        'rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95',
-                        active
-                          ? 'bg-stone-800 text-[#fff8ee]'
-                          : 'bg-white/90 ring-1 ring-stone-200 text-stone-600',
-                      ].join(' ')}
+                      style={active
+                        ? { background: c.text, color: c.card }
+                        : { background: c.btnBg, color: c.sub, boxShadow: `0 0 0 1px ${c.border}` }}
+                      className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95"
                     >
                       {s}
                     </button>
@@ -639,26 +684,30 @@ export function RoutineReview() {
                 })}
               </div>
               {/* Custom subject input */}
-              <div className="mt-2 flex items-center gap-2 rounded-2xl bg-white/80 px-3 py-2 ring-1 ring-stone-200">
-                <Plus className="h-3.5 w-3.5 flex-shrink-0 text-stone-400" strokeWidth={2} />
+              <div className="mt-2 flex items-center gap-2 rounded-2xl px-3 py-2"
+                style={{ background: c.btnBg, boxShadow: `0 0 0 1px ${c.border}` }}>
+                <Plus className="h-3.5 w-3.5 flex-shrink-0" style={{ color: c.dim }} strokeWidth={2} />
                 <input
+                  ref={addSubjectInputRef}
                   type="text"
                   value={customSubject}
                   onChange={(e) => setCustomSubject(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') addCustomSubject(); }}
                   placeholder="Add subject…"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-300"
+                  style={{ color: c.text }}
+                  className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:opacity-30"
                 />
                 {customSubject.trim().length > 0 && (
                   <button
                     onClick={addCustomSubject}
-                    className="rounded-full bg-stone-800 px-2.5 py-0.5 text-[11px] font-bold text-[#fff8ee]"
+                    style={{ background: c.text, color: c.card }}
+                    className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
                   >
                     Add
                   </button>
                 )}
               </div>
-              {/* Chips for custom-added subjects not in QUICK_SUBJECTS */}
+              {/* Chips for custom-added subjects */}
               {draftSubjects.filter((s) => !QUICK_SUBJECTS.includes(s as typeof QUICK_SUBJECTS[number])).length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {draftSubjects
@@ -667,7 +716,8 @@ export function RoutineReview() {
                       <button
                         key={s}
                         onClick={() => toggleDraftSubject(s)}
-                        className="rounded-full bg-stone-800 px-3 py-1.5 text-[13px] font-semibold text-[#fff8ee] transition active:scale-95"
+                        style={{ background: c.text, color: c.card }}
+                        className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95"
                       >
                         {s} ✕
                       </button>
@@ -678,7 +728,7 @@ export function RoutineReview() {
 
             {/* Start time */}
             <div className="px-5 pt-4">
-              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              <p style={{ color: c.sub }} className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em]">
                 Starts at
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -686,24 +736,20 @@ export function RoutineReview() {
                   <button
                     key={t}
                     onClick={() => setDraftTime(t)}
-                    className={[
-                      'rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 time-num',
-                      draftTime === t
-                        ? 'bg-stone-800 text-[#fff8ee]'
-                        : 'bg-white/90 ring-1 ring-stone-200 text-stone-600',
-                    ].join(' ')}
+                    style={draftTime === t
+                      ? { background: c.text, color: c.card }
+                      : { background: c.btnBg, color: c.sub, boxShadow: `0 0 0 1px ${c.border}` }}
+                    className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 time-num"
                   >
                     {t}
                   </button>
                 ))}
                 <button
                   onClick={() => setDraftTime(formatNowTime())}
-                  className={[
-                    'rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95',
-                    !QUICK_TIMES.includes(draftTime as typeof QUICK_TIMES[number]) && draftTime === formatNowTime()
-                      ? 'bg-stone-800 text-[#fff8ee]'
-                      : 'bg-white/90 ring-1 ring-stone-200 text-stone-600',
-                  ].join(' ')}
+                  style={(!QUICK_TIMES.includes(draftTime as typeof QUICK_TIMES[number]) && draftTime === formatNowTime())
+                    ? { background: c.text, color: c.card }
+                    : { background: c.btnBg, color: c.sub, boxShadow: `0 0 0 1px ${c.border}` }}
+                  className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95"
                 >
                   Now
                 </button>
@@ -712,7 +758,7 @@ export function RoutineReview() {
 
             {/* Focus block length */}
             <div className="px-5 pt-4">
-              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400">
+              <p style={{ color: c.sub }} className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em]">
                 Focus block
               </p>
               <div className="flex gap-1.5">
@@ -720,12 +766,10 @@ export function RoutineReview() {
                   <button
                     key={m}
                     onClick={() => setDraftFocus(m)}
-                    className={[
-                      'flex-1 rounded-full py-1.5 text-[13px] font-semibold transition active:scale-95 time-num',
-                      draftFocus === m
-                        ? 'bg-stone-800 text-[#fff8ee]'
-                        : 'bg-white/90 ring-1 ring-stone-200 text-stone-600',
-                    ].join(' ')}
+                    style={draftFocus === m
+                      ? { background: c.text, color: c.card }
+                      : { background: c.btnBg, color: c.sub, boxShadow: `0 0 0 1px ${c.border}` }}
+                    className="flex-1 rounded-full py-1.5 text-[13px] font-semibold transition active:scale-95 time-num"
                   >
                     {m}m
                   </button>
@@ -744,8 +788,10 @@ export function RoutineReview() {
                     focusMinutes: draftFocus,
                   });
                   setShowPlanEditor(false);
+                  if (fromRoom) navigate('/session');
                 }}
-                className="btn-soft btn-primary w-full text-[15px]"
+                className="btn-soft w-full text-[15px]"
+                style={{ background: c.text, color: c.card }}
               >
                 Save plan
               </button>
@@ -768,6 +814,7 @@ function ModeOption({
   subtitle,
   meta,
   tone,
+  dark = false,
   isLastUsed,
   onClick,
 }: {
@@ -776,12 +823,17 @@ function ModeOption({
   subtitle: string;
   meta: string;
   tone: 'mint' | 'lav';
+  dark?: boolean;
   isLastUsed: boolean;
   onClick: () => void;
 }) {
   const palette = tone === 'mint'
-    ? { active: 'btn-mint', textOn: '#18382b', icon: <Users className="h-3 w-3" /> }
-    : { active: 'btn-lav',  textOn: '#2c2150', icon: <Headphones className="h-3 w-3" /> };
+    ? { activeBg: dark ? 'rgba(52,211,153,0.18)' : undefined, activeCls: dark ? '' : 'btn-mint', textOn: dark ? '#5eead4' : '#18382b', icon: <Users className="h-3 w-3" /> }
+    : { activeBg: dark ? 'rgba(167,139,250,0.18)' : undefined, activeCls: dark ? '' : 'btn-lav',  textOn: dark ? '#c4b5fd' : '#2c2150', icon: <Headphones className="h-3 w-3" /> };
+
+  const inactiveBg   = dark ? 'rgba(255,255,255,0.07)' : undefined;
+  const inactiveCls  = dark ? '' : 'bg-white/90 ring-1 ring-stone-200/60';
+  const inactiveBorder = dark ? '1px solid rgba(255,255,255,0.10)' : undefined;
 
   return (
     <button
@@ -789,34 +841,37 @@ function ModeOption({
       className={[
         'flex items-center gap-4 rounded-[20px] px-4 py-3.5 text-left transition active:scale-[0.97]',
         isLastUsed
-          ? `${palette.active} shadow-md`
-          : 'bg-white/90 ring-1 ring-stone-200/60',
+          ? palette.activeCls + (dark ? ' shadow-lg' : ' shadow-md')
+          : inactiveCls,
       ].join(' ')}
+      style={isLastUsed
+        ? (dark ? { background: palette.activeBg, border: `1px solid ${palette.textOn}40` } : undefined)
+        : (dark ? { background: inactiveBg, border: inactiveBorder } : undefined)}
     >
       <span
-        className={[
-          'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-[26px] leading-none',
-          isLastUsed ? 'bg-white/30' : 'bg-stone-50',
-        ].join(' ')}
+        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-[26px] leading-none"
+        style={{ background: isLastUsed
+          ? (dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.30)')
+          : (dark ? 'rgba(255,255,255,0.08)' : '#f5f5f2') }}
       >
         {emoji}
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span
           className="text-[15px] font-bold tracking-tight"
-          style={{ color: isLastUsed ? palette.textOn : '#3a3c38' }}
+          style={{ color: isLastUsed ? palette.textOn : (dark ? 'rgba(255,255,255,0.88)' : '#3a3c38') }}
         >
           {title}
         </span>
         <span
           className="truncate text-[12px] font-medium"
-          style={{ color: isLastUsed ? `${palette.textOn}b3` : '#9ca29a' }}
+          style={{ color: isLastUsed ? `${palette.textOn}bb` : (dark ? 'rgba(255,255,255,0.42)' : '#9ca29a') }}
         >
           {subtitle}
         </span>
         <span
           className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-          style={{ color: isLastUsed ? `${palette.textOn}cc` : '#9ca29a' }}
+          style={{ color: isLastUsed ? `${palette.textOn}99` : (dark ? 'rgba(255,255,255,0.30)' : '#9ca29a') }}
         >
           {palette.icon} {isLastUsed ? 'Last used' : meta}
         </span>
