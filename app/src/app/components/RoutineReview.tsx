@@ -475,20 +475,13 @@ export function RoutineReview() {
                     <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: c.sub }}>
                       Begin
                     </span>
-                    <p className="serif-display mt-0.5 text-[20px] leading-tight" style={{ color: c.text }}>
+                    <p className="mt-0.5 text-[20px] font-bold leading-tight tracking-tight" style={{ color: c.text }}>
                       Choose your space
                     </p>
                   </>
                 ) : (
                   <>
-                    <button
-                      onClick={() => { setPickerStep('mode'); setCodeInput(''); }}
-                      className="mb-1 flex items-center gap-1 text-[11px] font-semibold transition"
-                      style={{ color: c.sub }}
-                    >
-                      ← back
-                    </button>
-                    <p className="serif-display text-[20px] leading-tight" style={{ color: c.text }}>
+                    <p className="text-[20px] font-bold leading-tight tracking-tight" style={{ color: c.text }}>
                       Study together
                     </p>
                   </>
