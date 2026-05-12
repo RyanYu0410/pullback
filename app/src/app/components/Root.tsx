@@ -43,18 +43,21 @@ export function Root() {
   }, [hasEntered, hasLoggedIn, hasRoutine, location.pathname, navigate]);
 
   return (
-    <div className="flex h-screen w-full items-center justify-center text-stone-800 font-sans" style={{ background: '#fff8ee' }}>
-      <div className="relative isolate flex h-full w-full max-w-[400px] flex-col overflow-hidden shadow-2xl sm:h-[800px] sm:rounded-[3rem] sm:border-[12px] sm:border-stone-900">
+    <div className="flex h-screen w-full sm:items-center sm:justify-center text-stone-800 font-sans" style={{ background: '#fff8ee' }}>
+      <div className="relative isolate flex h-full w-full sm:max-w-[400px] flex-col overflow-hidden sm:shadow-2xl sm:h-[800px] sm:rounded-[3rem] sm:border-[12px] sm:border-stone-900">
         <CanvasBackground tint={false} bgStyle={bgStyle} className="z-0" />
         <div
           className="pointer-events-none absolute inset-0 z-[1] backdrop-blur-[2px] transition-colors duration-700"
           style={{ backgroundColor: BG_OVERLAY[bgStyle] ?? BG_OVERLAY.honey }}
         />
 
-        <div className="absolute top-0 left-0 right-0 flex justify-center pt-3 z-50 pointer-events-none">
+        {/* Fake notch — only rendered inside the desktop phone-frame mockup */}
+        <div className="hidden sm:flex absolute top-0 left-0 right-0 justify-center pt-3 z-50 pointer-events-none">
           <div className="h-6 w-32 rounded-full bg-stone-900"></div>
         </div>
-        <div className="relative z-10 flex h-full w-full flex-col overflow-hidden pt-12">
+
+        {/* content-top-pad: env(safe-area-inset-top) on mobile, 48px on sm+ */}
+        <div className="relative z-10 flex h-full w-full flex-col overflow-hidden content-top-pad">
           <div className="min-h-0 flex-1 overflow-hidden">
             <AnimatePresence mode="wait">
               {outlet ? React.cloneElement(outlet, { key: location.pathname }) : null}

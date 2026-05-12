@@ -21,6 +21,20 @@
   --color-paper:    #fff8ee;
 }
 
+/* Responsive top padding: respects the real notch/island on mobile;
+   switches to the fixed 48px gap below the fake notch on sm+ desktop. */
+@utility content-top-pad {
+  padding-top: env(safe-area-inset-top, 0px);
+  @media (min-width: 640px) {
+    padding-top: 3rem; /* 48px = pt-12 */
+  }
+}
+
+/* Safe-area bottom padding for components that sit at the screen edge. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 @utility no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
