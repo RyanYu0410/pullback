@@ -1,20 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { useAppContext, formatOnlineUsers } from '../context/AppContext';
+import { useAppContext } from '../context/AppContext';
 import { Motion } from './Motion';
 import { BellSVG } from './PullBell';
 
 const PULL_THRESHOLD = 72;
 
 /**
- * Welcome — a single, quiet page. The bell is the only action.
- * Pull it past the threshold OR tap it to enter.
- *
- * Composition rules:
- *   - One serif wordmark, top-centered
- *   - One subject (the bell), perfectly centered in its visual field
- *   - One whisper-quiet hint underneath
- *   - One footnote at the bottom edge — never competing for attention
+ * Welcome — a warm room after the safety page.
+ * Pull the pendant past the threshold, or tap it, to enter.
  */
 export function Welcome() {
   const navigate = useNavigate();
@@ -119,8 +113,15 @@ export function Welcome() {
       exit={{ opacity: 0 }}
       className="flex h-full w-full flex-col"
     >
-      {/* Centerpiece — the bell, the only thing on this page */}
-      <div className="flex flex-1 flex-col items-center justify-start pt-16">
+      <div className="px-8 pt-8 text-center">
+        <p className="text-[11px] font-semibold tracking-[0.22em] text-stone-400">WELCOME</p>
+        <h1 className="serif-display mt-2 text-[42px] leading-none text-stone-800">Come in.</h1>
+        <p className="mx-auto mt-3 max-w-[16rem] text-[15px] leading-relaxed text-stone-500">
+          A quiet room is open. Pull the tab when you feel ready.
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center">
         <Motion.div
           initial={{ scale: 0.96, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -132,16 +133,16 @@ export function Welcome() {
             className="cursor-grab select-none touch-none active:cursor-grabbing"
           >
             <BellSVG
-              width={140}
+              width={120}
               stringLength={28}
               stringRef={stringRef}
               pendantRef={pendantRef}
             />
           </div>
+          <p className="mt-2 text-[12px] text-stone-400">Pull down, or tap</p>
         </Motion.div>
       </div>
 
-      {/* Footer — single line, low-contrast */}
       <Motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -149,9 +150,7 @@ export function Welcome() {
         className="flex items-center justify-center gap-2 pb-8"
       >
         <span className="online-dot" />
-        <span className="text-[11px] font-medium text-stone-400 time-num">
-          {formatOnlineUsers()}
-        </span>
+        <span className="text-[12px] text-stone-400">You can leave whenever you want</span>
       </Motion.div>
     </Motion.div>
   );

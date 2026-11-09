@@ -34,7 +34,8 @@ export type WidgetPreset =
   | 'selfCheckin'
   | 'intentionalInterface'
   | 'softIos'
-  | 'intentionRitual';
+  | 'intentionRitual'
+  | 'loFiWireframe';
 
 /**
  * App-wide background style, chosen in Settings.
@@ -149,6 +150,10 @@ interface AppContextState {
   hasEntered: boolean;
   setHasEntered: (val: boolean) => void;
 
+  /** True once the visitor has read the safety page this visit. */
+  hasSeenSafety: boolean;
+  setHasSeenSafety: (val: boolean) => void;
+
   /** True once the user has completed the profile/login step. */
   hasLoggedIn: boolean;
   setHasLoggedIn: (val: boolean) => void;
@@ -241,6 +246,7 @@ const AppContext = createContext<AppContextState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hasEntered, setHasEntered] = useState(false);
+  const [hasSeenSafety, setHasSeenSafety] = useState(false);
   const [hasLoggedIn, setHasLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmoji, setUserEmoji] = useState('🐶');
@@ -577,6 +583,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         hasEntered,
         setHasEntered,
+        hasSeenSafety,
+        setHasSeenSafety,
         hasLoggedIn,
         setHasLoggedIn,
         userName,

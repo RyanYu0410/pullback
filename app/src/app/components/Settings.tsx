@@ -46,8 +46,8 @@ function FlowerDot({ tone, size = 28 }: { tone: string; size?: number }) {
   );
 }
 
-/* ── Bouquet sheet ── */
-function BouquetSheet({
+/* ── Share card — full-screen beautiful collection ── */
+function ShareCard({
   routes,
   onClose,
 }: {
@@ -56,18 +56,160 @@ function BouquetSheet({
 }) {
   const [shared, setShared] = useState(false);
 
-  const handleShare = async () => {
-    const text = `🌸 My study garden has ${routes.length} blooms!\nGrown one session at a time 🌱`;
+  /* Deterministic scatter positions so flowers form a natural cluster */
+  const flowers = routes.map((r, i) => {
+    const tone  = toneFor(r);
+    const angle = (i / Math.max(routes.length, 1)) * Math.PI * 2 * 2.618; // golden ratio spiral
+    const dist  = Math.sqrt(i / Math.max(routes.length, 1)) * 110;
+    const x     = 50 + Math.cos(angle) * dist * 0.55;
+    const y     = 50 + Math.sin(angle) * dist * 0.38;
+    const rot   = ((i * 137) % 360);
+    const size  = 28 + (i % 3) * 6;
+    return { tone, x, y, rot, size, name: r.name };
+  });
+
+  const colourCount = new Set(routes.map(toneFor)).size;
+
+  const doShare = async () => {
+    const text = `🌸 I grew ${routes.length} study blooms in ${colourCount} colours!\nGrown one session at a time on Pullback 🌱`;
     try {
       if (navigator.share) {
         await navigator.share({ title: 'My Study Bouquet', text });
       } else {
         await navigator.clipboard.writeText(text);
         setShared(true);
-        setTimeout(() => setShared(false), 2000);
+        setTimeout(() => setShared(false), 2500);
       }
     } catch { /* cancelled */ }
   };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{ position: 'absolute', inset: 0, zIndex: 90, display: 'flex', flexDirection: 'column' }}
+    >
+      {/* Card area — the shareable region */}
+      <div style={{
+        flex: 1, position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(160deg, #fdf6ff 0%, #fff8f0 45%, #f0fdf4 100%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {/* Soft bg blobs */}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {Object.keys(TONE_COLOR).map((t, i) => (
+            <div key={t} style={{
+              position: 'absolute',
+              width: 180, height: 180, borderRadius: '50%',
+              background: TONE_COLOR[t].flower,
+              opacity: 0.10,
+              left: `${(i * 37) % 90}%`, top: `${(i * 51) % 80}%`,
+              filter: 'blur(40px)',
+              transform: 'translate(-50%, -50%)',
+            }} />
+          ))}
+        </div>
+
+        {/* Flower cluster */}
+        <div style={{ position: 'relative', width: 280, height: 260, flexShrink: 0 }}>
+          {flowers.map((f, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: `${f.x}%`, top: `${f.y}%`,
+                transform: `translate(-50%, -50%) rotate(${f.rot}deg)`,
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.10))',
+              }}
+            >
+              <FlowerDot tone={f.tone} size={f.size} />
+            </div>
+          ))}
+          {routes.length === 0 && (
+            <p style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c4c0ba', fontSize: 13 }}>
+              No blooms yet 🌱
+            </p>
+          )}
+        </div>
+
+        {/* Card text */}
+        <div style={{ textAlign: 'center', padding: '0 32px', marginTop: 8 }}>
+          <p style={{ fontSize: 28, fontWeight: 900, color: '#3a3c38', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+            {routes.length} {routes.length === 1 ? 'bloom' : 'blooms'}
+          </p>
+          <p style={{ fontSize: 13, color: '#9ca29a', marginTop: 6, fontWeight: 500 }}>
+            grown one session at a time
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            {Array.from(new Set(routes.map(toneFor))).map(t => (
+              <span key={t} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: TONE_COLOR[t].flower + '55',
+                border: `1px solid ${TONE_COLOR[t].deep}55`,
+                borderRadius: 20, padding: '3px 10px',
+                fontSize: 11, fontWeight: 700, color: '#3a3c38',
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: TONE_COLOR[t].deep, display: 'inline-block' }} />
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Watermark */}
+        <p style={{ position: 'absolute', bottom: 16, fontSize: 10, fontWeight: 600, color: 'rgba(58,60,56,0.20)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Pullback · Study Garden
+        </p>
+      </div>
+
+      {/* Action bar */}
+      <div style={{
+        background: '#fff', padding: '16px 20px 32px',
+        display: 'flex', gap: 12, alignItems: 'center',
+        borderTop: '1px solid rgba(0,0,0,0.06)',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            width: 44, height: 44, borderRadius: '50%', border: 'none', flexShrink: 0,
+            background: 'rgba(0,0,0,0.06)', color: '#9ca29a', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <X size={16} strokeWidth={2.2} />
+        </button>
+        <button
+          onClick={doShare}
+          style={{
+            flex: 1, height: 48, borderRadius: 24, border: 'none', cursor: 'pointer',
+            background: shared ? '#34d399' : 'linear-gradient(135deg, #b6a4f5 0%, #7ed4ae 100%)',
+            color: '#fff', fontSize: 15, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: '0 4px 20px rgba(124,58,237,0.22)',
+            transition: 'all 0.25s',
+          }}
+        >
+          {shared ? (
+            <>'✓  Copied to clipboard'</>
+          ) : (
+            <><Share2 size={16} strokeWidth={2.2} /> Share my garden</>
+          )}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Bouquet sheet ── */
+function BouquetSheet({
+  routes,
+  onClose,
+}: {
+  routes: SavedRoute[];
+  onClose: () => void;
+}) {
+  const [showShareCard, setShowShareCard] = useState(false);
 
   /* Group flowers by tone for a rainbow layout */
   const grouped = routes.reduce<Record<string, SavedRoute[]>>((acc, r) => {
@@ -95,7 +237,7 @@ function BouquetSheet({
           width: '100%', borderRadius: '28px 28px 0 0',
           background: 'rgba(255,252,245,0.98)', backdropFilter: 'blur(20px)',
           padding: '0 0 36px', maxHeight: '82vh', overflow: 'hidden',
-          display: 'flex', flexDirection: 'column',
+          display: 'flex', flexDirection: 'column', position: 'relative',
         }}
       >
         {/* Handle */}
@@ -115,18 +257,18 @@ function BouquetSheet({
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={handleShare}
+              onClick={() => setShowShareCard(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                background: shared ? '#34d399' : '#f0fdf4',
-                border: '1px solid', borderColor: shared ? '#34d399' : '#bbf7d0',
+                background: 'linear-gradient(135deg, #ede9fe 0%, #d1fae5 100%)',
+                border: '1px solid rgba(124,58,237,0.18)',
                 borderRadius: 20, padding: '7px 14px',
-                fontSize: 12, fontWeight: 700, color: shared ? '#fff' : '#16a34a',
-                cursor: 'pointer', transition: 'all 0.2s',
+                fontSize: 12, fontWeight: 700, color: '#5b21b6',
+                cursor: 'pointer',
               }}
             >
               <Share2 size={13} strokeWidth={2.2} />
-              {shared ? 'Copied!' : 'Share'}
+              Share
             </button>
             <button
               onClick={onClose}
@@ -173,7 +315,7 @@ function BouquetSheet({
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                   {list.map(r => (
                     <div key={r.id} title={r.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <FlowerDot tone={tone} size={32} />
+                      <FlowerDot tone={toneFor(r)} size={32} />
                       <span style={{ fontSize: 9, color: '#b5b0a8', maxWidth: 36, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
                         {r.name || '—'}
                       </span>
@@ -184,6 +326,13 @@ function BouquetSheet({
             ))
           )}
         </div>
+
+        {/* Share card overlay (within the sheet) */}
+        <AnimatePresence>
+          {showShareCard && (
+            <ShareCard routes={routes} onClose={() => setShowShareCard(false)} />
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
@@ -463,6 +612,24 @@ export function Settings() {
             );
           })}
         </div>
+      </div>
+
+      {/* ── Prototype (standalone, doesn't touch real routine/history data) ── */}
+      <div className="px-5 pt-7">
+        <p className={`mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] ${textSub}`}>
+          Prototype
+        </p>
+        <button
+          onClick={() => navigate('/lofi')}
+          className="flex w-full items-center justify-between rounded-2xl px-4 py-3.5 text-left transition active:opacity-60 active:scale-[0.99]"
+          style={{ background: cardBg, border: `1px solid ${cardBorder}`, boxShadow: '0 4px 14px rgba(0,0,0,0.05)', backdropFilter: 'blur(8px)' }}
+        >
+          <span className="flex flex-col">
+            <span className={`text-[14px] font-semibold ${rowTitle}`}>Lofi wireframe</span>
+            <span className={`mt-0.5 text-[11px] ${rowSub}`}>A flat, sketched-out tour · separate from your data</span>
+          </span>
+          <ChevronRight className={`h-4 w-4 flex-shrink-0 ${chevColor}`} strokeWidth={2} />
+        </button>
       </div>
 
       {/* Bouquet sheet */}

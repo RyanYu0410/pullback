@@ -5,6 +5,7 @@ import {
 } from './IntentionalInterfacePreset';
 import { SoftIosPreset, SoftIosThumbnail } from './SoftIosPreset';
 import { IntentionRitualPreset, IntentionRitualThumbnail } from './IntentionRitualPreset';
+import { LoFiPullPreset, LoFiPullThumbnail } from './LoFiPullPreset';
 import type { PresetDefinition } from './types';
 import type { WidgetPreset } from '../../context/AppContext';
 
@@ -38,6 +39,13 @@ export const PRESETS: PresetDefinition[] = [
     tagline: 'Tether, release, write to let go.',
     Component: IntentionRitualPreset,
     Thumbnail: IntentionRitualThumbnail,
+  },
+  {
+    id: 'loFiWireframe',
+    label: 'Low-fi wireframe',
+    tagline: 'Bare-bones pull-to-anchor, sketched flat.',
+    Component: LoFiPullPreset,
+    Thumbnail: LoFiPullThumbnail,
   },
 ];
 

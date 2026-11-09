@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAppContext, type SavedRoute } from '../context/AppContext';
 import { Motion } from './Motion';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 
 const FALLBACK: { id: string; date: string; title: string; subjects: string[]; minutes: number }[] = [
   { id: 'd1', date: 'Today',     title: 'After-school plan', subjects: ['Math', 'English'],   minutes: 50 },
@@ -39,8 +39,30 @@ function toEntry(r: SavedRoute) {
 export function Log() {
   const { savedRoutes, routine, setRoutine, loadSavedRoute, isDark } = useAppContext();
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [activeSubject, setActiveSubject] = useState<string | null>(null);
 
-  const entries = savedRoutes.length > 0 ? savedRoutes.map(toEntry) : FALLBACK;
+  const allEntries = savedRoutes.length > 0 ? savedRoutes.map(toEntry) : FALLBACK;
+
+  /* Collect unique subjects across all entries for the filter pills */
+  const allSubjects = useMemo(() => {
+    const set = new Set<string>();
+    allEntries.forEach(e => e.subjects.forEach(s => set.add(s)));
+    return Array.from(set).sort();
+  }, [allEntries]);
+
+  /* Apply search text + subject filter */
+  const entries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allEntries.filter(e => {
+      const matchesSearch = !q ||
+        e.title.toLowerCase().includes(q) ||
+        e.subjects.some(s => s.toLowerCase().includes(q)) ||
+        e.date.toLowerCase().includes(q);
+      const matchesSubject = !activeSubject || e.subjects.includes(activeSubject);
+      return matchesSearch && matchesSubject;
+    });
+  }, [allEntries, search, activeSubject]);
 
   const addToToday = (entryId: string, subjects: string[]) => {
     const matched = savedRoutes.find((r) => r.id === entryId);
@@ -70,8 +92,62 @@ export function Log() {
         <span className="h-8 w-8" aria-hidden />
       </div>
 
+      {/* ── Search bar ── */}
+      <div className="px-5 pt-3">
+        <div
+          className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
+          style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)'}` }}
+        >
+          <Search className="h-4 w-4 flex-shrink-0" style={{ color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(58,60,56,0.35)' }} strokeWidth={2} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search sessions…"
+            className="min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+            style={{ color: isDark ? 'rgba(255,255,255,0.88)' : '#3a3c38', caretColor: isDark ? '#a78bfa' : '#7c3aed' }}
+          />
+          {search.length > 0 && (
+            <button onClick={() => setSearch('')} style={{ color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(58,60,56,0.35)' }}>
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Subject filter pills ── */}
+      {allSubjects.length > 0 && (
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pt-2.5 pb-0.5">
+          {allSubjects.map(s => {
+            const active = activeSubject === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setActiveSubject(active ? null : s)}
+                className="flex-shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition-all duration-150 active:scale-95"
+                style={{
+                  background: active
+                    ? (isDark ? 'rgba(167,139,250,0.28)' : 'rgba(124,58,237,0.12)')
+                    : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
+                  color: active
+                    ? (isDark ? '#c4b5fd' : '#7c3aed')
+                    : (isDark ? 'rgba(255,255,255,0.50)' : 'rgba(58,60,56,0.50)'),
+                  border: `1px solid ${active ? (isDark ? 'rgba(167,139,250,0.40)' : 'rgba(124,58,237,0.25)') : 'transparent'}`,
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── Entry list ── */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-12 pt-4">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-12 pt-3">
+        {entries.length === 0 && (
+          <p className="pt-8 text-center text-[13px] font-medium" style={{ color: isDark ? 'rgba(255,255,255,0.30)' : 'rgba(58,60,56,0.35)' }}>
+            No sessions match your filter.
+          </p>
+        )}
         <div className="flex flex-col gap-2.5">
           {entries.map((e, i) => (
             <Motion.div

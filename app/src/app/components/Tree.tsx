@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAppContext, SavedRoute } from '../context/AppContext';
 import { Motion } from './Motion';
+import { motion } from 'motion/react';
 import { ChevronLeft, X } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +144,135 @@ const SEED_DAYS: { offset: number; minutes: number; sessions: number; subjects: 
 /* 14 days before that, and so on. Horizontal swipe / drag on the      */
 /* floor changes the page, so the calendar slides like a real one.    */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* MonthDial — Apple-style turnable drum picker for the month selector */
+/* ------------------------------------------------------------------ */
+const DIAL_ROW_H = 26; // px height of each month row
+const DIAL_VISIBLE = 5; // how many rows are visible in the window
+
+function MonthDial({
+  months,
+  activeKey,
+  isDark,
+  onSelect,
+}: {
+  months: { label: string; year: number; month: number }[];
+  activeKey: string;
+  isDark: boolean;
+  onSelect: (year: number, month: number) => void;
+}) {
+  const activeIdx = months.findIndex(m => `${m.year}-${m.month}` === activeKey);
+  const clampedIdx = activeIdx < 0 ? 0 : activeIdx;
+  const [listY, setListY] = useState(-clampedIdx * DIAL_ROW_H);
+
+  /* Sync dial when the active month changes from an external swipe */
+  React.useEffect(() => {
+    if (!isDragging.current) {
+      setListY(-clampedIdx * DIAL_ROW_H);
+    }
+  }, [clampedIdx]);
+  const dragStartY = useRef(0);
+  const dragStartListY = useRef(0);
+  const isDragging = useRef(false);
+
+  const windowH = DIAL_VISIBLE * DIAL_ROW_H;
+  const centerOffset = (windowH - DIAL_ROW_H) / 2;
+
+  /* snap to nearest month and fire onSelect */
+  const snap = (y: number) => {
+    const rawIdx = -y / DIAL_ROW_H;
+    const idx = Math.max(0, Math.min(months.length - 1, Math.round(rawIdx)));
+    const snapped = -idx * DIAL_ROW_H;
+    setListY(snapped);
+    onSelect(months[idx].year, months[idx].month);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    dragStartY.current = e.clientY;
+    dragStartListY.current = listY;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const delta = e.clientY - dragStartY.current;
+    const raw = dragStartListY.current + delta;
+    const clamped = Math.max(-(months.length - 1) * DIAL_ROW_H, Math.min(0, raw));
+    setListY(clamped);
+  };
+  const onPointerUp = () => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    snap(listY);
+  };
+
+  const displayIdx = Math.max(0, Math.min(months.length - 1, Math.round(-listY / DIAL_ROW_H)));
+
+  return (
+    <div
+      className="absolute left-5 z-20"
+      style={{ bottom: 52 }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          width: 58,
+          height: windowH,
+          borderRadius: 14,
+          overflow: 'hidden',
+          background: 'transparent',
+          backdropFilter: 'none',
+          border: 'none',
+          cursor: 'grab',
+          touchAction: 'none',
+          userSelect: 'none',
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+      >
+        {/* Fade masks top / bottom */}
+        <div aria-hidden style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.0) 0%, transparent 35%, transparent 65%, rgba(0,0,0,0.0) 100%)',
+        }} />
+
+        {/* Scrolling list */}
+        <div style={{
+          position: 'absolute', left: 0, right: 0,
+          top: centerOffset + listY,
+          transition: isDragging.current ? 'none' : 'top 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
+        }}>
+          {months.map((m, i) => {
+            const dist = Math.abs(i - displayIdx);
+            const opacity = dist === 0 ? 1 : dist === 1 ? 0.55 : dist === 2 ? 0.25 : 0.08;
+            const scale = dist === 0 ? 1 : dist === 1 ? 0.88 : 0.76;
+            return (
+              <div
+                key={`${m.year}-${m.month}`}
+                style={{
+                  height: DIAL_ROW_H,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: dist === 0 ? 12 : 11,
+                  fontWeight: dist === 0 ? 800 : 500,
+                  color: isDark ? 'rgba(255,255,255,0.92)' : '#3a3c38',
+                  opacity,
+                  transform: `scale(${scale})`,
+                  transition: 'opacity 0.15s, transform 0.15s',
+                  letterSpacing: dist === 0 ? '0.04em' : 0,
+                }}
+              >
+                {m.label}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Tree() {
   const navigate = useNavigate();
   const { savedRoutes, isDark } = useAppContext();
@@ -161,6 +291,42 @@ export function Tree() {
   const rangeLabel = pageIdx === 0
     ? `last ${weeksInWindow} weeks`
     : `${shortDate(cells[0].date)} – ${shortDate(cells[cells.length - 1].date)}`;
+
+  /* ── Month-picker helpers ─────────────────────────────────────────── */
+  /** Build last N months starting from the month containing today. */
+  const MONTH_COUNT = 6;
+  const monthOptions = useMemo(() => {
+    const today = new Date();
+    const months: { label: string; year: number; month: number }[] = [];
+    for (let i = 0; i < MONTH_COUNT; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push({
+        label: d.toLocaleString('default', { month: 'short' }),
+        year:  d.getFullYear(),
+        month: d.getMonth(),
+      });
+    }
+    return months; // newest first
+  }, []);
+
+  /** Which pageIdx to jump to when a month is selected.
+   *  We target the mid-point of the requested month and convert
+   *  the days-ago to a 14-day page index (rounded toward 0). */
+  const pageIdxForMonth = (year: number, month: number): number => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const midMonth = new Date(year, month, 15);
+    const daysAgo  = Math.round((today.getTime() - midMonth.getTime()) / 86_400_000);
+    return -Math.max(0, Math.floor(daysAgo / 14));
+  };
+
+  /** Active month = the last (most-recent) day in the visible window,
+   *  so today's window always highlights the current month. */
+  const activeMonthKey = useMemo(() => {
+    if (cells.length === 0) return '';
+    const last = cells[cells.length - 1].date;
+    return `${last.getFullYear()}-${last.getMonth()}`;
+  }, [cells]);
 
   return (
     <Motion.div
@@ -238,9 +404,19 @@ export function Tree() {
           </svg>
         </Motion.div>
 
+        {/* Month drum dial — above "drag for older", bottom-left */}
+        <MonthDial
+          months={monthOptions}
+          activeKey={activeMonthKey}
+          isDark={isDark}
+          onSelect={(year, month) => setPageIdx(pageIdxForMonth(year, month))}
+        />
+
         {/* Micro-stats + drag hint */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between px-5 pb-8">
-          {/* Left: drag-for-older hint — fades out after first swipe */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between px-5 pb-6">
+          {/* Left: dial + drag hint stacked */}
+          <div className="flex flex-col items-start gap-2">
+          {/* drag-for-older hint — fades out after first swipe */}
           <div
             className="flex items-center gap-1.5 text-[13px] font-semibold transition-opacity duration-500"
             style={{
@@ -254,6 +430,7 @@ export function Tree() {
             </svg>
             <span>drag for older</span>
           </div>
+          </div>{/* end left column */}
 
           {/* Right: streak · blooms · range */}
           <div style={{color:isDark?'rgba(255,255,255,0.40)':'#9ca29a'}} className="flex flex-col items-end gap-0.5">

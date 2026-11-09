@@ -23,9 +23,7 @@ export function BreakScreen() {
 
   useEffect(() => {
     if (remaining <= 0) {
-      // Auto-end break when timer hits zero
-      updateMyStatus('focusing');
-      navigate('/session');
+      navigate('/continue');
       return;
     }
     const t = setInterval(() => setRemaining((r) => r - 1), 1000);
@@ -77,8 +75,7 @@ export function BreakScreen() {
       isDragging = false;
       document.body.classList.remove('pull-active');
       if (pull >= PULL_THRESHOLD) {
-        updateMyStatus('focusing');
-        navigate('/session');
+        navigate('/continue');
       } else {
         velocity = 0;
         animFrame = requestAnimationFrame(spring);
